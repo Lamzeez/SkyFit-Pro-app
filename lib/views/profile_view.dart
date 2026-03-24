@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/user_viewmodel.dart';
+import '../viewmodels/theme_viewmodel.dart';
 import 'widgets/custom_widgets.dart';
 
 class ProfileView extends StatefulWidget {
@@ -35,12 +36,13 @@ class _ProfileViewState extends State<ProfileView> {
   Widget build(BuildContext context) {
     final authViewModel = context.watch<AuthViewModel>();
     final userViewModel = context.watch<UserViewModel>();
+    final themeViewModel = context.watch<ThemeViewModel>();
     final user = authViewModel.user;
 
     if (user == null) return const Scaffold(body: Center(child: Text("Not logged in")));
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Profile"), backgroundColor: Colors.lightBlue),
+      appBar: AppBar(title: const Text("Profile"), backgroundColor: Theme.of(context).appBarTheme.backgroundColor),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -77,6 +79,12 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             const SizedBox(height: 40),
             const Divider(),
+            SwitchListTile(
+              title: const Text("Dark Mode"),
+              subtitle: const Text("Toggle between light and dark themes"),
+              value: themeViewModel.isDarkMode,
+              onChanged: (val) => themeViewModel.toggleTheme(),
+            ),
             SwitchListTile(
               title: const Text("Enable Biometric Login"),
               subtitle: const Text("Use Fingerprint/FaceID to unlock"),

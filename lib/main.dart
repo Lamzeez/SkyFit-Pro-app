@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'viewmodels/theme_viewmodel.dart';
 import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/user_viewmodel.dart';
 import 'viewmodels/weather_viewmodel.dart';
@@ -35,6 +36,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ThemeViewModel()),
         ChangeNotifierProvider(create: (_) => AuthViewModel()),
         ChangeNotifierProvider(create: (_) => UserViewModel()),
         ChangeNotifierProvider(create: (_) => WeatherViewModel()),
@@ -67,6 +69,7 @@ class _SkyFitProAppState extends State<SkyFitProApp> {
   @override
   Widget build(BuildContext context) {
     final authViewModel = context.watch<AuthViewModel>();
+    final themeViewModel = context.watch<ThemeViewModel>();
 
     return Listener(
       onPointerDown: (_) => _sessionManager.resetTimer(),
@@ -74,11 +77,7 @@ class _SkyFitProAppState extends State<SkyFitProApp> {
       child: MaterialApp(
         navigatorKey: _navigatorKey,
         title: 'SkyFit Pro',
-        theme: ThemeData(
-          primarySwatch: Colors.lightBlue,
-          scaffoldBackgroundColor: Colors.white,
-          useMaterial3: true,
-        ),
+        theme: themeViewModel.currentTheme,
         home: _getHome(authViewModel),
         routes: {
           '/login': (context) => const LoginView(),

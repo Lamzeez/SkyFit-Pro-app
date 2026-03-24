@@ -103,8 +103,10 @@ class _HomeViewState extends State<HomeView> {
     }
 
     final weather = viewModel.weather!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Card(
-      color: Colors.lightBlue[100],
+      color: isDark ? Colors.blueGrey[900] : Colors.lightBlue[100],
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(

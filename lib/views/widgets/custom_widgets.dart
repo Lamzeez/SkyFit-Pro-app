@@ -18,18 +18,26 @@ class CustomTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return TextFormField(
       controller: controller,
       obscureText: isPassword,
       keyboardType: keyboardType,
       validator: validator,
+      style: TextStyle(color: isDark ? Colors.white : Colors.black),
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black26),
+        ),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.9),
+        fillColor: isDark ? Colors.grey[850] : Colors.white.withValues(alpha: 0.9),
       ),
     );
   }
