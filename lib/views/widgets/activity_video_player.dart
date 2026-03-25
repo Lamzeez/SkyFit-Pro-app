@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 class ActivityVideoPlayer extends StatefulWidget {
   final String videoUrl;
@@ -11,55 +12,111 @@ class ActivityVideoPlayer extends StatefulWidget {
 }
 
 class _ActivityVideoPlayerState extends State<ActivityVideoPlayer> {
-  late VideoPlayerController _controller;
-  bool _initialized = false;
+  // Regular Video Player fields
+  VideoPlayerController? _videoController;
+  bool _videoInitialized = false;
+
+  // YouTube IFrame Player fields
+  YoutubePlayerController? _youtubeController;
+  bool _isYoutube = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-      ..initialize().then((_) {
-        setState(() {
-          _initialized = true;
-          _controller.setLooping(true);
-          _controller.setVolume(0); // Muted by default
-          _controller.play();
+    _checkAndInitPlayer();
+  }
+
+  void _checkAndInitPlayer() {
+    String? videoId = YoutubePlayerController.convertUrlToId(widget.videoUrl);
+    if (videoId != null) {
+      _isYoutube = true;
+      _youtubeController = YoutubePlayerController.fromVideoId(
+        videoId: videoId,
+        autoPlay: true,
+        params: const YoutubePlayerParams(
+          showControls: true,
+          showFullscreenButton: true,
+          mute: true,
+          loop: true,
+        ),
+      );
+    } else {
+      _isYoutube = false;
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
+        ..initialize().then((_) {
+          if (mounted) {
+            setState(() {
+              _videoInitialized = true;
+              _videoController!.setLooping(true);
+              _videoController!.setVolume(0);
+              _videoController!.play();
+            });
+          }
         });
-      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(ActivityVideoPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videoUrl != widget.videoUrl) {
+      _disposeCurrentPlayer();
+      _checkAndInitPlayer();
+    }
+  }
+
+  void _disposeCurrentPlayer() {
+    _videoController?.dispose();
+    _videoController = null;
+    _videoInitialized = false;
+    
+    _youtubeController?.close();
+    _youtubeController = null;
+    _isYoutube = false;
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _disposeCurrentPlayer();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_initialized) {
+    if (_isYoutube && _youtubeController != null) {
+      return YoutubePlayer(
+        controller: _youtubeController!,
+        aspectRatio: 16 / 9,
+      );
+    }
+
+    if (!_videoInitialized || _videoController == null) {
       return const SizedBox(
         height: 200,
         child: Center(child: CircularProgressIndicator()),
       );
     }
+
     return AspectRatio(
-      aspectRatio: _controller.value.aspectRatio,
+      aspectRatio: _videoController!.value.aspectRatio,
       child: Stack(
         alignment: Alignment.bottomCenter,
         children: [
-          VideoPlayer(_controller),
-          VideoProgressIndicator(_controller, allowScrubbing: true),
+          VideoPlayer(_videoController!),
+          VideoProgressIndicator(_videoController!, allowScrubbing: true),
           Positioned(
             right: 10,
             bottom: 10,
             child: IconButton(
               icon: Icon(
-                _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                _videoController!.value.isPlaying ? Icons.pause : Icons.play_arrow,
                 color: Colors.white,
               ),
               onPressed: () {
                 setState(() {
-                  _controller.value.isPlaying ? _controller.pause() : _controller.play();
+                  _videoController!.value.isPlaying 
+                      ? _videoController!.pause() 
+                      : _videoController!.play();
                 });
               },
             ),

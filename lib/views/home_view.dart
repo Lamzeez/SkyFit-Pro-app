@@ -222,6 +222,7 @@ class _HomeViewState extends State<HomeView> {
               children: [
                 Text(weather.cityName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 Text(weather.condition, style: const TextStyle(fontSize: 18)),
+                Text("Humidity: ${weather.humidity}%", style: const TextStyle(fontSize: 14, color: Colors.blueGrey)),
               ],
             ),
             Text(
