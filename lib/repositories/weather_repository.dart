@@ -24,4 +24,17 @@ class WeatherRepository {
       return _cachedWeather; // Return cached even if expired on error
     }
   }
+
+  Future<WeatherModel?> getWeatherByLocation(double lat, double lon) async {
+    try {
+      _cachedWeather = await _apiService.fetchWeatherByLocation(lat, lon);
+      if (_cachedWeather != null) {
+        _lastFetch = DateTime.now();
+      }
+      return _cachedWeather;
+    } catch (e) {
+      print("Error in weather repo (location): $e");
+      return _cachedWeather;
+    }
+  }
 }

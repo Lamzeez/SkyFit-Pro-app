@@ -22,4 +22,21 @@ class ApiService {
       return null;
     }
   }
+
+  Future<WeatherModel?> fetchWeatherByLocation(double lat, double lon) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl?lat=$lat&lon=$lon&appid=${EnvConfig.openWeatherApiKey}&units=metric"),
+      );
+
+      if (response.statusCode == 200) {
+        return WeatherModel.fromJson(json.decode(response.body));
+      } else {
+        throw Exception("Failed to load weather data for location: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error fetching weather by location: $e");
+      return null;
+    }
+  }
 }

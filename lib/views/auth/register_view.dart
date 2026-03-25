@@ -16,6 +16,7 @@ class RegisterView extends StatefulWidget {
 class _RegisterViewState extends State<RegisterView> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
@@ -123,6 +124,17 @@ class _RegisterViewState extends State<RegisterView> {
                   if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]').hasMatch(v)) {
                     return "Need: Upper, Lower, Number, Special Char";
                   }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+              CustomTextField(
+                controller: _confirmPasswordController,
+                label: "Confirm Password",
+                isPassword: true,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return "Confirm your password";
+                  if (v != _passwordController.text) return "Passwords do not match";
                   return null;
                 },
               ),

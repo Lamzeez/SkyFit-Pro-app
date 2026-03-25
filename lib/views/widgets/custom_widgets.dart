@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class CustomTextField extends StatelessWidget {
+class CustomTextField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final bool isPassword;
@@ -17,17 +17,30 @@ class CustomTextField extends StatelessWidget {
   });
 
   @override
+  State<CustomTextField> createState() => _CustomTextFieldState();
+}
+
+class _CustomTextFieldState extends State<CustomTextField> {
+  bool _obscureText = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscureText = widget.isPassword;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return TextFormField(
-      controller: controller,
-      obscureText: isPassword,
-      keyboardType: keyboardType,
-      validator: validator,
+      controller: widget.controller,
+      obscureText: _obscureText,
+      keyboardType: widget.keyboardType,
+      validator: widget.validator,
       style: TextStyle(color: isDark ? Colors.white : Colors.black),
       decoration: InputDecoration(
-        labelText: label,
+        labelText: widget.label,
         labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -38,6 +51,19 @@ class CustomTextField extends StatelessWidget {
         ),
         filled: true,
         fillColor: isDark ? Colors.grey[850] : Colors.white.withValues(alpha: 0.9),
+        suffixIcon: widget.isPassword
+            ? IconButton(
+                icon: Icon(
+                  _obscureText ? Icons.visibility_off : Icons.visibility,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _obscureText = !_obscureText;
+                  });
+                },
+              )
+            : null,
       ),
     );
   }

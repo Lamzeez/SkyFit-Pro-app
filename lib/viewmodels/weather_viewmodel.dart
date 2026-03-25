@@ -36,6 +36,25 @@ class WeatherViewModel extends ChangeNotifier {
     }
   }
 
+  Future<void> updateWeatherByLocation(double lat, double lon, UserModel? user) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _weather = await _weatherRepository.getWeatherByLocation(lat, lon);
+      if (_weather != null && user != null) {
+        _suggestedActivities = _generateActivities(_weather!, user);
+      }
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   List<ActivityModel> _generateActivities(WeatherModel weather, UserModel user) {
     List<ActivityModel> activities = [];
     String condition = weather.condition.toLowerCase();

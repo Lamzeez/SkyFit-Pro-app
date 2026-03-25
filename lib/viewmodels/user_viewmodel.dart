@@ -62,10 +62,8 @@ class UserViewModel extends ChangeNotifier {
       img.Image? decodedImage = img.decodeImage(fileData);
       if (decodedImage == null) throw Exception("Failed to decode image");
 
-      // Resize if necessary (Max 500x500)
-      if (decodedImage.width > 500 || decodedImage.height > 500) {
-        decodedImage = img.copyResize(decodedImage, width: 500, height: 500);
-      }
+      // Crop to a square from center and Resize to 500x500
+      decodedImage = img.copyResizeCropSquare(decodedImage, size: 500);
 
       // Encode as JPG with 75% quality (Very small file size, good quality)
       final compressedData = img.encodeJpg(decodedImage, quality: 75);

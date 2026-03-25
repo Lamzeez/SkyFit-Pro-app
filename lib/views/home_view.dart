@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/weather_viewmodel.dart';
 import 'profile_view.dart';
@@ -17,9 +18,96 @@ class _HomeViewState extends State<HomeView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = context.read<AuthViewModel>().user;
-      context.read<WeatherViewModel>().updateWeatherAndActivities("Manila", user);
+      _initLocationAndWeather();
     });
+  }
+
+  Future<void> _initLocationAndWeather() async {
+    final user = context.read<AuthViewModel>().user;
+    
+    // 1. Show permission dialog
+    bool? shouldAccessLocation = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Location Access"),
+        content: const Text("SkyFit Pro needs to access your location to provide accurate weather-based health activities for your specific area."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Use Default (Manila)"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Allow Access"),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldAccessLocation == true) {
+      try {
+        Position position = await _determinePosition();
+        if (mounted) {
+          context.read<WeatherViewModel>().updateWeatherByLocation(
+            position.latitude, 
+            position.longitude, 
+            user
+          );
+        }
+      } catch (e) {
+        debugPrint("Location error: $e");
+        if (mounted) {
+          context.read<WeatherViewModel>().updateWeatherAndActivities("Manila", user);
+        }
+      }
+    } else {
+      if (mounted) {
+        context.read<WeatherViewModel>().updateWeatherAndActivities("Manila", user);
+      }
+    }
+  }
+
+  Future<Position> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('Location services are disabled.');
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('Location permissions are denied');
+      }
+    }
+    
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error('Location permissions are permanently denied, we cannot request permissions.');
+    } 
+
+    return await Geolocator.getCurrentPosition();
+  }
+
+  Future<void> _refreshWeather() async {
+    final user = context.read<AuthViewModel>().user;
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      if (mounted) {
+        await context.read<WeatherViewModel>().updateWeatherByLocation(
+          position.latitude, 
+          position.longitude, 
+          user
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        await context.read<WeatherViewModel>().updateWeatherAndActivities("Manila", user);
+      }
+    }
   }
 
   @override
@@ -41,8 +129,7 @@ class _HomeViewState extends State<HomeView> {
               );
               // When coming back, the user profile might have changed (Age/Weight)
               if (mounted) {
-                final user = context.read<AuthViewModel>().user;
-                context.read<WeatherViewModel>().updateWeatherAndActivities("Manila", user);
+                _refreshWeather();
               }
             },
           ),
@@ -56,7 +143,7 @@ class _HomeViewState extends State<HomeView> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => weatherViewModel.updateWeatherAndActivities("Manila", authViewModel.user),
+        onRefresh: _refreshWeather,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16.0),

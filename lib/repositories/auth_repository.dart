@@ -24,20 +24,20 @@ class AuthRepository {
       if (user != null) {
         String? profileUrl;
         
-        // Convert image to Base64 String to bypass Storage CORS issues
+        // Crop and Resize to 500x500 square to avoid squishing
         if (profileImageData != null) {
           try {
             img.Image? decodedImage = img.decodeImage(profileImageData);
             if (decodedImage != null) {
-              if (decodedImage.width > 500 || decodedImage.height > 500) {
-                decodedImage = img.copyResize(decodedImage, width: 500, height: 500);
-              }
+              // This crops the image to a square from the center and resizes it
+              decodedImage = img.copyResizeCropSquare(decodedImage, size: 500);
+              
               final compressedData = img.encodeJpg(decodedImage, quality: 75);
               final base64String = base64Encode(compressedData);
               profileUrl = "data:image/jpeg;base64,$base64String";
             }
           } catch (e) {
-            print("Failed to compress and encode profile picture: $e");
+            print("Failed to process profile picture: $e");
           }
         }
 
