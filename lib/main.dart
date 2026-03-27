@@ -10,6 +10,7 @@ import 'views/widgets/custom_widgets.dart';
 import 'views/auth/login_view.dart';
 import 'views/auth/biometric_lock_view.dart';
 import 'views/home_view.dart';
+import 'views/profile_view.dart';
 import 'utils/env_config.dart';
 
 void main() async {

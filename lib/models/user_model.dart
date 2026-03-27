@@ -35,6 +35,10 @@ class UserModel {
     return 'High BMI';
   }
 
+  bool get isProfileComplete {
+    return fullName.isNotEmpty && age > 0 && weight > 0;
+  }
+
   factory UserModel.fromMap(Map<String, dynamic> map, String id) {
     return UserModel(
       uid: id,

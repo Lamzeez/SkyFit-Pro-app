@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'dart:typed_data';
 import 'dart:convert';
 import 'package:image/image.dart' as img;
@@ -10,7 +11,18 @@ import '../utils/env_config.dart';
 class AuthRepository {
   FirebaseAuth get _auth => FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final FacebookAuth _facebookAuth = FacebookAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
+
+  AuthRepository() {
+    // Initialize Facebook Auth for Web
+    _facebookAuth.webAndDesktopInitialize(
+      appId: "1670995600575868", // TODO: Replace with your Facebook App ID
+      cookie: true,
+      xfbml: true,
+      version: "v19.0",
+    );
+  }
 
   Stream<User?> get authStateChanges => EnvConfig.isFirebaseConfigured ? _auth.authStateChanges() : const Stream.empty();
 
@@ -124,9 +136,62 @@ class AuthRepository {
     return null;
   }
 
+  Future<UserModel?> signInWithFacebook() async {
+    print("Facebook SSO started...");
+    if (!EnvConfig.isFirebaseConfigured) {
+      print("Firebase NOT configured - returning Mock User");
+      return UserModel(uid: "mock_facebook_uid", email: "facebook@mock.com", fullName: "Facebook Mock User", age: 0, weight: 0.0, height: 170.0);
+    }
+    try {
+      print("Calling FacebookAuth.instance.login() with explicit permissions...");
+      final LoginResult result = await _facebookAuth.login(
+        permissions: ['public_profile', 'email'],
+      );
+      print("Facebook Login Status: ${result.status}");
+      
+      if (result.status == LoginStatus.success) {
+        print("Facebook Login Success - Access Token: ${result.accessToken?.tokenString}");
+        final AuthCredential credential = FacebookAuthProvider.credential(result.accessToken!.tokenString);
+        
+        print("Authenticating with Firebase...");
+        final UserCredential userCredential = await _auth.signInWithCredential(credential);
+        final User? user = userCredential.user;
+
+        if (user != null) {
+          print("Firebase Auth Success - UID: ${user.uid}");
+          UserModel? userModel = await _firestoreService.getUser(user.uid);
+          if (userModel == null) {
+            print("Creating new Firestore user...");
+            userModel = UserModel(
+              uid: user.uid,
+              email: user.email ?? '',
+              fullName: user.displayName ?? '',
+              age: 0,
+              weight: 0.0,
+              height: 170.0,
+            );
+            await _firestoreService.createUser(userModel);
+          }
+          return userModel;
+        }
+      } else if (result.status == LoginStatus.cancelled) {
+        print("Facebook Login Cancelled by user.");
+      } else if (result.status == LoginStatus.failed) {
+        print("Facebook Login Failed: ${result.message}");
+        throw result.message ?? "Facebook login failed without a message.";
+      }
+    } catch (e) {
+      print("Error in Facebook SSO Catch Block: $e");
+      rethrow;
+    }
+    print("Facebook SSO finished with null result (likely cancelled or failed).");
+    return null;
+  }
+
   Future<void> signOut() async {
     if (!EnvConfig.isFirebaseConfigured) return;
     await _googleSignIn.signOut();
+    await _facebookAuth.logOut();
     await _auth.signOut();
   }
 

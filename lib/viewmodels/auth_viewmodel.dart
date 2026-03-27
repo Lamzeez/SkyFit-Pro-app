@@ -246,6 +246,29 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> signInWithFacebook() async {
+    _isLoading = true;
+    _error = null;
+    _success = null;
+    notifyListeners();
+    try {
+      _user = await _authRepository.signInWithFacebook();
+      if (_user != null) {
+        _isBiometricAuthenticated = true;
+        _biometricFailCount = 0;
+        setSuccess("Signed in with Facebook successfully!");
+      }
+      _isLoading = false;
+      notifyListeners();
+      return _user != null;
+    } catch (e) {
+      setError(e.toString());
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> refreshUser() async {
     _user = await _authRepository.getCurrentUserModel();
     notifyListeners();

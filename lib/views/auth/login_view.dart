@@ -350,6 +350,66 @@ class _LoginViewState extends State<LoginView> {
                             ),
                           ),
                         ),
+
+                        const SizedBox(height: 12),
+
+                        // Facebook SSO button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: authViewModel.isLoading
+                                ? null
+                                : () async {
+                                    bool success =
+                                        await authViewModel.signInWithFacebook();
+                                    if (success && mounted) {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                const HomeView()),
+                                      );
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark
+                                  ? const Color(0xFF1E2535)
+                                  : const Color(0xFFF3F5F8),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                side: BorderSide(
+                                  color: isDark
+                                      ? const Color(0xFF2A3650)
+                                      : Colors.black12,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Official Facebook Icon
+                                Image.asset(
+                                  'lib/icons/facebook_logo.png',
+                                  width: 22,
+                                  height: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Facebook',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
