@@ -429,6 +429,11 @@ String mapAuthError(String raw) {
   if (r.contains('popup_closed') || r.contains('popup-closed')) {
     return 'Sign-in with Google was cancelled. Please try again.';
   }
+
+  // Facebook Sign-In flow
+  if (r.contains('facebook_cancelled') || r.contains('facebook-cancelled')) {
+    return 'Sign-in with Facebook was cancelled. Please try again.';
+  }
   if (r.contains('popup_blocked') || r.contains('popup-blocked')) {
     return 'Pop-up was blocked by your browser. Please allow pop-ups and retry.';
   }

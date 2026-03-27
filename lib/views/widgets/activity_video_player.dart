@@ -4,8 +4,13 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 class ActivityVideoPlayer extends StatefulWidget {
   final String videoUrl;
+  final bool isInteractivityEnabled;
 
-  const ActivityVideoPlayer({super.key, required this.videoUrl});
+  const ActivityVideoPlayer({
+    super.key, 
+    required this.videoUrl,
+    this.isInteractivityEnabled = true,
+  });
 
   @override
   State<ActivityVideoPlayer> createState() => _ActivityVideoPlayerState();
@@ -83,46 +88,50 @@ class _ActivityVideoPlayerState extends State<ActivityVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    Widget player;
     if (_isYoutube && _youtubeController != null) {
-      return YoutubePlayer(
+      player = YoutubePlayer(
         controller: _youtubeController!,
         aspectRatio: 16 / 9,
       );
-    }
-
-    if (!_videoInitialized || _videoController == null) {
-      return const SizedBox(
+    } else if (_videoInitialized && _videoController != null) {
+      player = AspectRatio(
+        aspectRatio: _videoController!.value.aspectRatio,
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            VideoPlayer(_videoController!),
+            VideoProgressIndicator(_videoController!, allowScrubbing: true),
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: IconButton(
+                icon: Icon(
+                  _videoController!.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _videoController!.value.isPlaying 
+                        ? _videoController!.pause() 
+                        : _videoController!.play();
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      player = const SizedBox(
         height: 200,
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
-    return AspectRatio(
-      aspectRatio: _videoController!.value.aspectRatio,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          VideoPlayer(_videoController!),
-          VideoProgressIndicator(_videoController!, allowScrubbing: true),
-          Positioned(
-            right: 10,
-            bottom: 10,
-            child: IconButton(
-              icon: Icon(
-                _videoController!.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                color: Colors.white,
-              ),
-              onPressed: () {
-                setState(() {
-                  _videoController!.value.isPlaying 
-                      ? _videoController!.pause() 
-                      : _videoController!.play();
-                });
-              },
-            ),
-          ),
-        ],
-      ),
+    return IgnorePointer(
+      ignoring: !widget.isInteractivityEnabled,
+      child: player,
     );
   }
 }

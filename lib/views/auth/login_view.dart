@@ -294,9 +294,19 @@ class _LoginViewState extends State<LoginView> {
                         const SizedBox(height: 16),
 
                         // Google SSO button
-                        SizedBox(
+                        Container(
                           width: double.infinity,
                           height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.14),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
                           child: ElevatedButton(
                             onPressed: authViewModel.isLoading
                                 ? null
@@ -317,12 +327,13 @@ class _LoginViewState extends State<LoginView> {
                                   ? const Color(0xFF1E2535)
                                   : const Color(0xFFF3F5F8),
                               elevation: 0,
+                              surfaceTintColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                                 side: BorderSide(
                                   color: isDark
                                       ? const Color(0xFF2A3650)
-                                      : Colors.black12,
+                                      : Colors.black.withValues(alpha: 0.08),
                                 ),
                               ),
                             ),
@@ -354,9 +365,19 @@ class _LoginViewState extends State<LoginView> {
                         const SizedBox(height: 12),
 
                         // Facebook SSO button
-                        SizedBox(
+                        Container(
                           width: double.infinity,
                           height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.14),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
                           child: ElevatedButton(
                             onPressed: authViewModel.isLoading
                                 ? null
@@ -377,12 +398,13 @@ class _LoginViewState extends State<LoginView> {
                                   ? const Color(0xFF1E2535)
                                   : const Color(0xFFF3F5F8),
                               elevation: 0,
+                              surfaceTintColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                                 side: BorderSide(
                                   color: isDark
                                       ? const Color(0xFF2A3650)
-                                      : Colors.black12,
+                                      : Colors.black.withValues(alpha: 0.08),
                                 ),
                               ),
                             ),

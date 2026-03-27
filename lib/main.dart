@@ -182,6 +182,12 @@ class _SkyFitProAppState extends State<SkyFitProApp> {
       if (!authViewModel.isBiometricAuthenticated) {
         return const BiometricLockView();
       }
+
+      // Check for mandatory profile completeness (Age, Weight, etc.)
+      if (!authViewModel.user!.isProfileComplete) {
+        // Force Profile page if data is missing
+        return const ProfileView();
+      }
       
       // Only start the timer once when entering the authenticated home state
       if (!_timerStarted) {

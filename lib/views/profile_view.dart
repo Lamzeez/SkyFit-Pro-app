@@ -44,6 +44,19 @@ class _ProfileBodyState extends State<ProfileBody> {
   final ImagePicker _picker = ImagePicker();
 
   @override
+  void initState() {
+    super.initState();
+    // Check if profile is incomplete and force edit sheet
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authVM = context.read<AuthViewModel>();
+      final userVM = context.read<UserViewModel>();
+      if (authVM.user != null && !authVM.user!.isProfileComplete) {
+        _openEditSheet(context, userVM, isMandatory: true);
+      }
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
@@ -84,25 +97,29 @@ class _ProfileBodyState extends State<ProfileBody> {
   }
 
   // ── Opens the bottom-sheet edit form ─────────────────────────────────────
-  void _openEditSheet(BuildContext context, UserViewModel userViewModel) {
+  void _openEditSheet(BuildContext context, UserViewModel userViewModel, {bool isMandatory = false}) {
     final authViewModel = context.read<AuthViewModel>();
     final user = userViewModel.user ?? authViewModel.user;
     if (user == null) return;
 
     final nameCtrl = TextEditingController(text: user.fullName);
-    final ageCtrl = TextEditingController(text: user.age.toString());
+    final ageCtrl = TextEditingController(text: user.age > 0 ? user.age.toString() : '');
     final heightCtrl =
         TextEditingController(text: user.height.toStringAsFixed(0));
     final weightCtrl =
-        TextEditingController(text: user.weight.toStringAsFixed(1));
+        TextEditingController(text: user.weight > 0 ? user.weight.toStringAsFixed(1) : '');
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: !isMandatory, // Prevent closing if mandatory
+      enableDrag: !isMandatory,    // Prevent swiping down if mandatory
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Consumer<AuthViewModel>(
-          builder: (context, authVM, child) {
+        return PopScope(
+          canPop: !isMandatory, // Prevent back button closing
+          child: Consumer<AuthViewModel>(
+            builder: (context, authVM, child) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
             final sheetBg = isDark ? const Color(0xFF131C2E) : Colors.white;
 
@@ -154,11 +171,13 @@ class _ProfileBodyState extends State<ProfileBody> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Update your personal details below.',
+                            isMandatory 
+                              ? 'Please complete your profile details to continue.' 
+                              : 'Update your personal details below.',
                             style: TextStyle(
                               fontSize: 13,
-                              color:
-                                  isDark ? Colors.white38 : Colors.black38,
+                              color: isMandatory ? const Color(0xFF38B6FF) : (isDark ? Colors.white38 : Colors.black38),
+                              fontWeight: isMandatory ? FontWeight.w600 : FontWeight.normal,
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -338,6 +357,24 @@ class _ProfileBodyState extends State<ProfileBody> {
                             ),
                           ),
                           const SizedBox(height: 8),
+
+                          if (isMandatory) ...[
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextButton.icon(
+                                onPressed: () async {
+                                  Navigator.pop(context); // Close sheet
+                                  await authVM.logout();
+                                },
+                                icon: const Icon(Icons.exit_to_app, color: Colors.redAccent, size: 18),
+                                label: const Text(
+                                  'Exit & Logout',
+                                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -346,10 +383,11 @@ class _ProfileBodyState extends State<ProfileBody> {
               ),
             );
           },
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Widget _sheetLabel(String text, bool isDark) {
     return Text(

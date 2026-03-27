@@ -190,9 +190,21 @@ class AuthRepository {
 
   Future<void> signOut() async {
     if (!EnvConfig.isFirebaseConfigured) return;
-    await _googleSignIn.signOut();
-    await _facebookAuth.logOut();
-    await _auth.signOut();
+    try {
+      await _googleSignIn.signOut();
+      
+      // Only call logOut if we actually have an active Facebook session
+      final accessToken = await _facebookAuth.accessToken;
+      if (accessToken != null) {
+        await _facebookAuth.logOut();
+      }
+      
+      await _auth.signOut();
+    } catch (e) {
+      print("Error during signOut: $e");
+      // Ensure we at least sign out of Firebase
+      await _auth.signOut();
+    }
   }
 
   Future<UserModel?> getCurrentUserModel() async {

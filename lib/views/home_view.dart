@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/weather_viewmodel.dart';
 import '../services/storage_service.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'profile_view.dart';
 import 'widgets/activity_video_player.dart';
 import 'widgets/custom_widgets.dart';
@@ -17,6 +18,7 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   int _currentNavIndex = 0; // 0=Home, 1=Activity, 2=Profile
+  bool _isDialogOpen = false;
 
   @override
   void initState() {
@@ -230,19 +232,30 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _showLogoutConfirmation(BuildContext context, AuthViewModel authViewModel) {
+    setState(() => _isDialogOpen = true);
     showDialog(
       context: context,
-      builder: (context) => ConfirmLogoutDialog(
-        onCancel: () => Navigator.pop(context),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await authViewModel.logout();
-          if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/login');
-          }
-        },
+      builder: (context) => PointerInterceptor(
+        child: ConfirmLogoutDialog(
+          onCancel: () {
+            Navigator.pop(context);
+            setState(() => _isDialogOpen = false);
+          },
+          onConfirm: () async {
+            Navigator.pop(context);
+            setState(() => _isDialogOpen = false);
+            await authViewModel.logout();
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed('/login');
+            }
+          },
+        ),
       ),
-    );
+    ).then((_) {
+      if (mounted && _isDialogOpen) {
+        setState(() => _isDialogOpen = false);
+      }
+    });
   }
 
   // ── Bottom Navigation Bar ────────────────────────────────────────────────
@@ -496,7 +509,10 @@ class _HomeViewState extends State<HomeView> {
           // Video player
           if (activity.mediaUrl != null)
             ClipRRect(
-              child: ActivityVideoPlayer(videoUrl: activity.mediaUrl!),
+              child: ActivityVideoPlayer(
+                videoUrl: activity.mediaUrl!,
+                isInteractivityEnabled: !_isDialogOpen,
+              ),
             )
           else
             Container(
@@ -874,14 +890,19 @@ class _HomeViewState extends State<HomeView> {
               Stack(
                 children: [
                   IgnorePointer(
-                    child: ActivityVideoPlayer(videoUrl: activity.mediaUrl!),
+                    child: ActivityVideoPlayer(
+                      videoUrl: activity.mediaUrl!,
+                      isInteractivityEnabled: !_isDialogOpen,
+                    ),
                   ),
                   Positioned.fill(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () {
-                        viewModel.selectActivity(activity);
-                        setState(() => _currentNavIndex = 1);
+                        if (!_isDialogOpen) {
+                          viewModel.selectActivity(activity);
+                          setState(() => _currentNavIndex = 1);
+                        }
                       },
                       child: Container(color: Colors.transparent),
                     ),

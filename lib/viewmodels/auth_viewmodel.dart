@@ -234,6 +234,9 @@ class AuthViewModel extends ChangeNotifier {
         _isBiometricAuthenticated = true;
         _biometricFailCount = 0;
         setSuccess("Signed in with Google successfully!");
+      } else {
+        // Handle cancellation
+        setError("Sign-in with Google was cancelled. Please try again.");
       }
       _isLoading = false;
       notifyListeners();
@@ -257,6 +260,9 @@ class AuthViewModel extends ChangeNotifier {
         _isBiometricAuthenticated = true;
         _biometricFailCount = 0;
         setSuccess("Signed in with Facebook successfully!");
+      } else {
+        // Handle cancellation
+        setError("Sign-in with Facebook was cancelled. Please try again.");
       }
       _isLoading = false;
       notifyListeners();
