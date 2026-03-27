@@ -6,6 +6,7 @@ import '../viewmodels/user_viewmodel.dart';
 import '../viewmodels/theme_viewmodel.dart';
 import '../viewmodels/weather_viewmodel.dart';
 import 'widgets/custom_widgets.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
@@ -403,15 +404,35 @@ class _ProfileBodyState extends State<ProfileBody> {
   void _showLogoutConfirmation(BuildContext context, AuthViewModel authViewModel) {
     showDialog(
       context: context,
-      builder: (context) => ConfirmLogoutDialog(
-        onCancel: () => Navigator.pop(context),
-        onConfirm: () async {
-          Navigator.pop(context);
-          await authViewModel.logout();
-          if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/login');
-          }
-        },
+      builder: (context) => PointerInterceptor(
+        child: ConfirmLogoutDialog(
+          onCancel: () => Navigator.pop(context),
+          onConfirm: () async {
+            Navigator.pop(context);
+            await authViewModel.logout();
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed('/login');
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteAccountConfirmation(BuildContext context, AuthViewModel authViewModel) {
+    showDialog(
+      context: context,
+      builder: (context) => PointerInterceptor(
+        child: ConfirmDeleteAccountDialog(
+          onCancel: () => Navigator.pop(context),
+          onConfirm: () async {
+            Navigator.pop(context);
+            bool success = await authViewModel.deleteAccount();
+            if (success && mounted) {
+              Navigator.of(context).pushReplacementNamed('/login');
+            }
+          },
+        ),
       ),
     );
   }
@@ -819,9 +840,55 @@ class _ProfileBodyState extends State<ProfileBody> {
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 48),
+
+                // ── Danger Zone ───────────────────────────────────────────
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12.0),
+                  child: Text(
+                    'Danger Zone',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.2,
+                      color: Color(0xFFFF4B4B),
+                    ),
+                  ),
+                ),
+                Material(
+                  color: isDark ? const Color(0xFF131C2E) : Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => _showDeleteAccountConfirmation(context, authViewModel),
+                    splashColor: const Color(0xFFFF4B4B).withValues(alpha: 0.1),
+                    highlightColor: const Color(0xFFFF4B4B).withValues(alpha: 0.05),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: const Color(0xFFFF4B4B).withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: SettingsTile(
+                        icon: Icons.delete_outline_rounded,
+                        iconColor: const Color(0xFFFF4B4B),
+                        title: 'Delete Account',
+                        subtitle: 'Permanently wipe all your data',
+                        backgroundColor: Colors.transparent,
+                        trailing: Icon(
+                          Icons.chevron_right_rounded,
+                          color: isDark ? Colors.white24 : Colors.black12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
 
                 // ── Version Footer ────────────────────────────────────────
+
                 Center(
                   child: Text(
                     'SKYFIT PRO V1.0.0  •  BUILD 2026',

@@ -275,6 +275,32 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> deleteAccount() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      await _authRepository.deleteAccount();
+      _user = null;
+      _isBiometricAuthenticated = false;
+      _biometricFailCount = 0;
+      setSuccess("Your account has been permanently deleted.");
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      String errorMessage = e.toString();
+      if (errorMessage.contains('requires-recent-login')) {
+        setError("For security, please log in again before deleting your account.");
+      } else {
+        setError(errorMessage);
+      }
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> refreshUser() async {
     _user = await _authRepository.getCurrentUserModel();
     notifyListeners();

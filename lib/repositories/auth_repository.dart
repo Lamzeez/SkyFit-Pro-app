@@ -207,6 +207,22 @@ class AuthRepository {
     }
   }
 
+  Future<void> deleteAccount() async {
+    if (!EnvConfig.isFirebaseConfigured) return;
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        // First delete from Firestore
+        await _firestoreService.deleteUser(user.uid);
+        // Then delete from Firebase Auth
+        await user.delete();
+      }
+    } catch (e) {
+      print("Error in deleteAccount: $e");
+      rethrow;
+    }
+  }
+
   Future<UserModel?> getCurrentUserModel() async {
     if (!EnvConfig.isFirebaseConfigured) return null;
     User? user = _auth.currentUser;
