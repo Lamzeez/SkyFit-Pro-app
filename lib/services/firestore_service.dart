@@ -44,6 +44,12 @@ class FirestoreService {
     await _db.collection('users').doc(uid).update({'securePin': pin});
   }
 
+  Future<bool> isEmailTaken(String email) async {
+    if (!EnvConfig.isFirebaseConfigured) return false;
+    final query = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
+    return query.docs.isNotEmpty;
+  }
+
   Future<void> deleteUser(String uid) async {
     if (!EnvConfig.isFirebaseConfigured) return;
     await _db.collection('users').doc(uid).delete();

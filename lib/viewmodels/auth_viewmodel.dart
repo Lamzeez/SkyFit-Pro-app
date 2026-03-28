@@ -85,7 +85,16 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Generate 6-digit OTP
+      // 1. Check if email already has a profile in Firestore
+      bool isTaken = await _firestoreService.isEmailTaken(email);
+      if (isTaken) {
+        setError("An account already exists for this email.");
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      // 2. Generate 6-digit OTP
       final random = Random();
       final otp = (100000 + random.nextInt(900000)).toString();
       
@@ -334,22 +343,26 @@ class AuthViewModel extends ChangeNotifier {
     _error = null;
     
     if (enabled) {
+      // 1. Check if hardware is even capable/supported
+      bool available = await _localAuthService.isBiometricAvailable();
+      if (!available) {
+        setError("Your device or browser does not support biometric security.");
+        notifyListeners();
+        return false;
+      }
+
       try {
         debugPrint("Attempting to toggle biometrics ON. Authenticating...");
         bool success = await _localAuthService.authenticate();
-        // On Web, some browsers return false if no credential is saved yet.
-        // We allow the toggle to proceed so the user can 'Enable' the feature.
-        if (!success && !kIsWeb) {
+        if (!success) {
           setError("Authentication failed. Ensure you have a PIN/Fingerprint set up.");
           notifyListeners();
           return false;
         }
       } catch (e) {
-        if (!kIsWeb) {
-          setError("Hardware Error: ${e.toString()}");
-          notifyListeners();
-          return false;
-        }
+        setError("Hardware Error: ${e.toString()}");
+        notifyListeners();
+        return false;
       }
     }
 
@@ -439,7 +452,9 @@ class AuthViewModel extends ChangeNotifier {
       notifyListeners();
       return true;
     } else {
-      setError("Incorrect PIN. Please try again.");
+      _biometricFailCount++;
+      setError("Incorrect PIN. Attempt $_biometricFailCount/3.");
+      notifyListeners();
       return false;
     }
   }

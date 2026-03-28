@@ -394,66 +394,155 @@ class _ProfileBodyState extends State<ProfileBody> {
     final pinController = TextEditingController();
     final confirmController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showDialog(
       context: context,
       builder: (context) => PointerInterceptor(
-        child: AlertDialog(
-          title: const Text('Setup Secure PIN'),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Enter a 4-6 digit PIN to secure your account.'),
-                const SizedBox(height: 20),
-                CustomTextField(
-                  controller: pinController,
-                  label: 'New PIN',
-                  keyboardType: TextInputType.number,
-                  isPassword: true,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(6),
-                  ],
-                  validator: (v) {
-                    if (v == null || v.length < 4) return 'PIN must be 4-6 digits';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                CustomTextField(
-                  controller: confirmController,
-                  label: 'Confirm PIN',
-                  keyboardType: TextInputType.number,
-                  isPassword: true,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(6),
-                  ],
-                  validator: (v) {
-                    if (v != pinController.text) return 'PINs do not match';
-                    return null;
-                  },
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF131C2E) : Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon Header
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF38B6FF).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock_person_rounded,
+                        color: Color(0xFF38B6FF),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    Text(
+                      'Secure PIN',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create a 4-6 digit code to protect your personal health data.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    CustomTextField(
+                      controller: pinController,
+                      label: 'New PIN',
+                      hintText: 'Enter 4-6 digits',
+                      keyboardType: TextInputType.number,
+                      isPassword: true,
+                      prefixIcon: Icons.dialpad_rounded,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      validator: (v) {
+                        if (v == null || v.length < 4) return 'PIN must be 4-6 digits';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextField(
+                      controller: confirmController,
+                      label: 'Confirm PIN',
+                      hintText: 'Repeat your PIN',
+                      keyboardType: TextInputType.number,
+                      isPassword: true,
+                      prefixIcon: Icons.lock_outline_rounded,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      validator: (v) {
+                        if (v != pinController.text) return 'PINs do not match';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Actions
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: isDark ? Colors.white38 : Colors.black38,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (formKey.currentState!.validate()) {
+                                bool success = await authViewModel.setSecurePin(pinController.text);
+                                if (success && context.mounted) Navigator.pop(context);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF38B6FF),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: const Text(
+                              'Enable PIN',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (formKey.currentState!.validate()) {
-                  await authViewModel.setSecurePin(pinController.text);
-                  if (context.mounted) Navigator.pop(context);
-                }
-              },
-              child: const Text('Save PIN'),
-            ),
-          ],
         ),
       ),
     );
