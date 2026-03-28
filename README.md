@@ -73,8 +73,8 @@ docker run -p 8080:8080 skyfit-pro
 The project includes a `cloudbuild.yaml` for CI/CD. Ensure the substitutions are configured in your GCP console.
 
 ## 👥 Team Members
-- [Name 1] - Role
-- [Name 2] - Role
-- [Name 3] - Role
-- [Name 4] - Role
-- [Name 5] - Role
+- M1: Lamoste, Dennis Dave - Lead Architect & Auth Core
+- M2: Masanguid, John Paul - Security & Biometrics
+- M3: Paja, John Mark - Profile & Logic
+- M4: Baccera, Clawrenz Carl - DevOps & Cloud (GCP)
+- M5: Monton, Bondave - UI/UX & Integration

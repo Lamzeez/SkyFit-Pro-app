@@ -17,7 +17,7 @@ class AuthRepository {
   AuthRepository() {
     // Initialize Facebook Auth for Web
     _facebookAuth.webAndDesktopInitialize(
-      appId: "1670995600575868", // TODO: Replace with your Facebook App ID
+      appId: EnvConfig.facebookAppId,
       cookie: true,
       xfbml: true,
       version: "v19.0",
