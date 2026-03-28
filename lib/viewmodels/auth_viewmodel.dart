@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import '../repositories/auth_repository.dart';
@@ -326,15 +327,19 @@ class AuthViewModel extends ChangeNotifier {
       try {
         debugPrint("Attempting to toggle biometrics ON. Authenticating...");
         bool success = await _localAuthService.authenticate();
-        if (!success) {
+        // On Web, some browsers return false if no credential is saved yet.
+        // We allow the toggle to proceed so the user can 'Enable' the feature.
+        if (!success && !kIsWeb) {
           setError("Authentication failed. Ensure you have a PIN/Fingerprint set up.");
           notifyListeners();
           return false;
         }
       } catch (e) {
-        setError("Hardware Error: ${e.toString()}");
-        notifyListeners();
-        return false;
+        if (!kIsWeb) {
+          setError("Hardware Error: ${e.toString()}");
+          notifyListeners();
+          return false;
+        }
       }
     }
 
