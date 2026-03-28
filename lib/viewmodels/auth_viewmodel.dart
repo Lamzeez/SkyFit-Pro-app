@@ -389,7 +389,9 @@ class AuthViewModel extends ChangeNotifier {
     try {
       await _firestoreService.updateSecurePin(_user!.uid, pin);
       _user = _user!.copyWith(securePin: pin);
-      _isPinAuthenticated = true;
+      // Ensure we stay authenticated after setting the PIN
+      _isPinAuthenticated = true; 
+      _isBiometricAuthenticated = true;
       setSuccess("Secure PIN set successfully!");
       _isLoading = false;
       notifyListeners();
@@ -452,6 +454,7 @@ class AuthViewModel extends ChangeNotifier {
       _isPinAuthenticated = true;
       _isBiometricAuthenticated = true; // PIN serves as a manual override for Biometrics
       _biometricFailCount = 0;
+      setSuccess("App unlocked successfully!");
       notifyListeners();
       return true;
     } else {
