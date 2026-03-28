@@ -16,14 +16,32 @@ class _BiometricLockViewState extends State<BiometricLockView> {
   final TextEditingController _pinController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _usePin = false;
+  bool _usePassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-setup initial state based on what's enabled
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authVM = context.read<AuthViewModel>();
+      if (!authVM.user!.biometricEnabled && authVM.pinEnabled) {
+        setState(() => _usePin = true);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final authViewModel = context.watch<AuthViewModel>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final user = authViewModel.user;
 
-    // Auto-switch to PIN if biometrics fail or aren't the primary choice but PIN is set
-    bool showPinEntry = _usePin || (authViewModel.pinEnabled && !authViewModel.isBiometricAuthenticated && authViewModel.biometricLockedOut);
+    if (user == null) return const SizedBox.shrink();
+
+    // Determine what to show
+    bool isLockedOut = authViewModel.biometricLockedOut || _usePassword;
+    bool showPinEntry = !isLockedOut && _usePin;
+    bool showBiometricButton = !isLockedOut && !showPinEntry && user.biometricEnabled;
 
     return Scaffold(
       body: Center(
@@ -34,31 +52,37 @@ class _BiometricLockViewState extends State<BiometricLockView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Branded Icon
                 Icon(
-                  authViewModel.biometricLockedOut ? Icons.lock_outline : (showPinEntry ? Icons.dialpad : Icons.fingerprint),
-                  size: 100,
-                  color: Colors.lightBlue,
+                  isLockedOut ? Icons.lock_outline : (showPinEntry ? Icons.dialpad : Icons.fingerprint),
+                  size: 80,
+                  color: const Color(0xFF38B6FF),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Text(
-                  authViewModel.biometricLockedOut 
-                    ? "Security Lock" 
-                    : "Welcome back, ${authViewModel.user?.fullName ?? ''}",
+                  isLockedOut ? "Account Lock" : "Welcome back,",
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                Text(
+                  user.fullName,
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  _getSubtitleText(authViewModel),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
-                ),
                 const SizedBox(height: 40),
                 
-                if (authViewModel.biometricLockedOut) ...[
+                // 1. PASSWORD FALLBACK (Shown if 3 fails or user selects it)
+                if (isLockedOut) ...[
+                  Text(
+                    authViewModel.biometricLockedOut 
+                      ? "Too many failed attempts. Enter password to unlock."
+                      : "Enter your account password to continue.",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
                   CustomTextField(
                     controller: _passwordController,
-                    label: "Account Password",
+                    label: "Password",
                     isPassword: true,
                     validator: (v) => v!.isEmpty ? "Enter password" : null,
                   ),
@@ -68,70 +92,89 @@ class _BiometricLockViewState extends State<BiometricLockView> {
                     isLoading: authViewModel.isLoading,
                     onPressed: () async {
                       if (_formKey.currentState!.validate()) {
-                        bool success = await authViewModel.verifyPassword(_passwordController.text);
-                        if (!success && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(authViewModel.error ?? "Authentication failed")),
-                          );
-                        }
+                        await authViewModel.verifyPassword(_passwordController.text);
                       }
                     },
                   ),
-                ] else if (showPinEntry) ...[
+                ] 
+                
+                // 2. PIN ENTRY
+                else if (showPinEntry) ...[
+                  const Text("Enter your Secure PIN"),
+                  const SizedBox(height: 20),
                   CustomTextField(
                     controller: _pinController,
-                    label: "Enter 4-6 Digit PIN",
+                    label: "PIN Code",
                     isPassword: true,
                     keyboardType: TextInputType.number,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(6),
                     ],
-                    validator: (v) => v!.length < 4 ? "Enter valid PIN" : null,
+                    validator: (v) => v!.length < 4 ? "Enter 4-6 digits" : null,
                   ),
                   const SizedBox(height: 20),
                   CustomButton(
                     text: "Verify PIN",
                     isLoading: authViewModel.isLoading,
                     onPressed: () async {
-                      if (_formKey.currentState!.validate()) {
-                        await authViewModel.verifyPin(_pinController.text);
-                      }
+                      // Removed form validation to ensure every click counts as an attempt
+                      await authViewModel.verifyPin(_pinController.text);
                     },
                   ),
-                  if (authViewModel.user?.biometricEnabled == true)
-                    TextButton(
-                      onPressed: () => setState(() => _usePin = false),
-                      child: const Text("Use Biometrics instead"),
-                    ),
-                ] else ...[
+                ]
+
+                // 3. BIOMETRIC BUTTON (Only if enabled)
+                else if (showBiometricButton) ...[
                   CustomButton(
                     text: "Authenticate with Biometrics",
                     onPressed: () async {
-                      bool success = await authViewModel.authenticateWithBiometrics();
-                      if (!success && authViewModel.pinEnabled) {
-                        setState(() => _usePin = true);
-                      }
+                      await authViewModel.authenticateWithBiometrics();
                     },
-                  ),
-                  const SizedBox(height: 10),
-                  if (authViewModel.pinEnabled)
-                    TextButton(
-                      onPressed: () => setState(() => _usePin = true),
-                      child: const Text("Use Secure PIN"),
-                    ),
-                  TextButton(
-                    onPressed: () {
-                      authViewModel.logout(); 
-                    },
-                    child: const Text("Sign Out / Switch Account"),
                   ),
                 ],
+
+                const SizedBox(height: 24),
+
+                // --- FOOTER OPTIONS ---
+                if (!isLockedOut) ...[
+                  // Option: Sign in with PIN (If not currently showing PIN)
+                  if (!_usePin && authViewModel.pinEnabled)
+                    TextButton.icon(
+                      onPressed: () => setState(() { _usePin = true; _usePassword = false; }),
+                      icon: const Icon(Icons.dialpad, size: 16),
+                      label: const Text("Sign in with PIN"),
+                    ),
+                  
+                  // Option: Sign in with Biometrics (If currently showing PIN but bio enabled)
+                  if (_usePin && user.biometricEnabled)
+                    TextButton.icon(
+                      onPressed: () => setState(() { _usePin = false; _usePassword = false; }),
+                      icon: const Icon(Icons.fingerprint, size: 16),
+                      label: const Text("Use Biometrics instead"),
+                    ),
+
+                  // Option: Sign in with Password instead
+                  TextButton.icon(
+                    onPressed: () => setState(() { _usePassword = true; _usePin = false; }),
+                    icon: const Icon(Icons.password, size: 16),
+                    label: const Text("Sign in with password instead"),
+                  ),
+                ],
+
+                // Global Option: Sign Out
+                TextButton(
+                  onPressed: () => authViewModel.logout(),
+                  child: Text(
+                    "Sign Out / Switch Account",
+                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
+                  ),
+                ),
                 
                 if (authViewModel.error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 20),
-                    child: Text(authViewModel.error!, style: const TextStyle(color: Colors.red)),
+                    child: Text(authViewModel.error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
                   ),
               ],
             ),
@@ -139,15 +182,5 @@ class _BiometricLockViewState extends State<BiometricLockView> {
         ),
       ),
     );
-  }
-
-  String _getSubtitleText(AuthViewModel vm) {
-    if (vm.biometricLockedOut) {
-      return "Too many failed attempts. Please enter your account password to unlock.";
-    }
-    if (_usePin || (vm.pinEnabled && !vm.isBiometricAuthenticated)) {
-      return "Please enter your Secure PIN to continue.";
-    }
-    return "Please authenticate to access your health data.";
   }
 }
