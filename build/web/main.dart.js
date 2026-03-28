@@ -110856,7 +110856,7 @@ p=4
 s=7
 return A.k(n.c.A0(n.e.a,null),$async$Hh)
 case 7:n.e=n.e.a1I(null)
-n.y=!0
+n.x=n.y=!0
 n.lZ("Secure PIN disabled.")
 n.f=!1
 n.P()

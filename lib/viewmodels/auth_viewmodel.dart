@@ -409,7 +409,10 @@ class AuthViewModel extends ChangeNotifier {
     try {
       await _firestoreService.updateSecurePin(_user!.uid, null);
       _user = _user!.copyWith(securePin: null);
-      _isPinAuthenticated = true;
+      // When removing the PIN, we ensure the user is 'authenticated' 
+      // so they aren't kicked to the lock screen immediately.
+      _isPinAuthenticated = true; 
+      _isBiometricAuthenticated = true;
       setSuccess("Secure PIN disabled.");
       _isLoading = false;
       notifyListeners();
