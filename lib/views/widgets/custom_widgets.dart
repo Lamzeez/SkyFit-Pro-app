@@ -11,6 +11,7 @@ class CustomTextField extends StatefulWidget {
   final String? hintText;
   final IconData? prefixIcon;
   final List<TextInputFormatter>? inputFormatters;
+  final EdgeInsetsGeometry? contentPadding;
 
   const CustomTextField({
     super.key,
@@ -22,6 +23,7 @@ class CustomTextField extends StatefulWidget {
     this.hintText,
     this.prefixIcon,
     this.inputFormatters,
+    this.contentPadding,
   });
 
   @override
@@ -109,7 +111,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
             borderRadius: BorderRadius.circular(14),
             borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
           ),
-          contentPadding:
+          contentPadding: widget.contentPadding ??
               const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           suffixIcon: widget.isPassword
               ? IconButton(

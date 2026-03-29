@@ -206,10 +206,33 @@ class _RegisterViewState extends State<RegisterView> {
     return 'Your Password is Very Strong';
   }
 
+  String _getMissingRequirementsText() {
+    List<String> missing = [];
+    if (!_hasMinLength) missing.add('at least 8 characters');
+    if (!_hasUppercase) missing.add('an uppercase letter');
+    if (!_hasLowercase) missing.add('a lowercase letter');
+    if (!_hasNumber) missing.add('a number');
+    if (!_hasSpecialChar) missing.add('a special character');
+
+    if (missing.isEmpty) return 'Perfect! Your password is secure.';
+
+    String text = 'Your password must contain: ';
+    for (int i = 0; i < missing.length; i++) {
+      text += missing[i];
+      if (i < missing.length - 2) {
+        text += ', ';
+      } else if (i == missing.length - 2) {
+        text += ', and ';
+      }
+    }
+    return text;
+  }
+
   Widget _buildPasswordStrengthIndicator(bool isDark) {
     final double percent = _getStrengthPercent();
     final Color color = _getStrengthColor();
     final String text = _getStrengthText();
+    final String requirements = _getMissingRequirementsText();
 
     if (_passwordController.text.isEmpty) return const SizedBox.shrink();
 
@@ -251,15 +274,31 @@ class _RegisterViewState extends State<RegisterView> {
           ],
         ),
         const SizedBox(height: 8),
-        // Strength text
-        AnimatedDefaultTextStyle(
-          duration: const Duration(milliseconds: 200),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-          child: Text(text),
+        // Strength text and Requirements
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+              child: Text(text),
+            ),
+            if (percent < 1.0) ...[
+              const SizedBox(height: 4),
+              Text(
+                requirements,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white38 : Colors.black45,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ],
         ),
       ],
     );
@@ -438,7 +477,8 @@ class _RegisterViewState extends State<RegisterView> {
                                     label: '',
                                     hintText: '28',
                                     keyboardType: TextInputType.number,
-                                    prefixIcon: Icons.calendar_today_outlined,
+                                    prefixIcon: null, // Removed to save space
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                     validator: (v) =>
                                         v!.isEmpty ? 'Required' : null,
@@ -446,7 +486,7 @@ class _RegisterViewState extends State<RegisterView> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8), // Reduced from 12
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,7 +498,8 @@ class _RegisterViewState extends State<RegisterView> {
                                     label: '',
                                     hintText: '175',
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    prefixIcon: Icons.height,
+                                    prefixIcon: null, // Removed to save space
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                                     validator: (v) =>
                                         v!.isEmpty ? 'Required' : null,
@@ -466,7 +507,7 @@ class _RegisterViewState extends State<RegisterView> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8), // Reduced from 12
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,7 +519,8 @@ class _RegisterViewState extends State<RegisterView> {
                                     label: '',
                                     hintText: '70.0',
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    prefixIcon: Icons.monitor_weight_outlined,
+                                    prefixIcon: null, // Removed to save space
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                                     validator: (v) =>
                                         v!.isEmpty ? 'Required' : null,
