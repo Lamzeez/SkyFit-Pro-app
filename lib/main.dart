@@ -175,7 +175,9 @@ class _SkyFitProAppState extends State<SkyFitProApp> {
   }
 
   Widget _getHome(AuthViewModel authViewModel) {
-    if (authViewModel.isLoading) {
+    // Only show full-screen loader if we are in the middle of a primary auth action (Login/Register)
+    // and don't have a user session yet.
+    if (authViewModel.isLoading && authViewModel.user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (authViewModel.user != null) {

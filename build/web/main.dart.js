@@ -109664,7 +109664,7 @@ s.d=new A.Hw(new A.aGN(s),new A.aGO(s),$.aA())},
 N(a){var s=this,r=null,q=A.cM(a,!0,t.F),p=A.cM(a,!0,t.nM).a?$.b_O():$.b_P()
 return A.xJ(B.c6,new A.F2(s.e,s.ajF(q),A.a4(["/login",new A.aGG(),"/home",new A.aGH()],t.N,t.y_),new A.aGI(s,q),"SkyFit Pro",p,!1,r),r,new A.aGJ(s,q),new A.aGK(s,q),r,r,r)},
 ajF(a){var s,r,q=this
-if(a.f)return B.a19
+if(a.f&&a.e==null)return B.a19
 s=a.e
 if(s!=null){if(!a.x||!a.y)return B.Fq
 if(!s.ga4a())return B.a_X
