@@ -6,6 +6,7 @@ import '../viewmodels/weather_viewmodel.dart';
 import '../services/storage_service.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'profile_view.dart';
+import 'auth/login_view.dart';
 import 'widgets/activity_video_player.dart';
 import 'widgets/custom_widgets.dart';
 
@@ -242,11 +243,19 @@ class _HomeViewState extends State<HomeView> {
             setState(() => _isDialogOpen = false);
           },
           onConfirm: () async {
+            // 1. Close the dialog first
             Navigator.pop(context);
             setState(() => _isDialogOpen = false);
+            
+            // 2. Perform the logout
             await authViewModel.logout();
+            
+            // 3. Force navigate to LoginView using a clean route
             if (mounted) {
-              Navigator.of(context).pushReplacementNamed('/login');
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const LoginView()),
+                (route) => false, // Clears the entire navigation stack
+              );
             }
           },
         ),

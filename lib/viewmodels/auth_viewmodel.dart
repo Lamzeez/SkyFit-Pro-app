@@ -218,6 +218,8 @@ class AuthViewModel extends ChangeNotifier {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
         _resetFailCount(_user!.email);
+        // Important: Update primary biometric user on successful login
+        await _storageService.save('biometric_email', _user!.email);
         setSuccess("Welcome back, ${_user!.fullName}!");
       }
       _isLoading = false;
@@ -242,6 +244,7 @@ class AuthViewModel extends ChangeNotifier {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
         _resetFailCount(_user!.email);
+        await _storageService.save('biometric_email', _user!.email);
         setSuccess("Account created successfully!");
       }
       _isLoading = false;
@@ -266,6 +269,7 @@ class AuthViewModel extends ChangeNotifier {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
         _resetFailCount(_user!.email);
+        await _storageService.save('biometric_email', _user!.email);
         setSuccess("Signed in with Google successfully!");
       } else {
         setError("Sign-in with Google was cancelled. Please try again.");
@@ -292,6 +296,7 @@ class AuthViewModel extends ChangeNotifier {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
         _resetFailCount(_user!.email);
+        await _storageService.save('biometric_email', _user!.email);
         setSuccess("Signed in with Facebook successfully!");
       } else {
         setError("Sign-in with Facebook was cancelled. Please try again.");
@@ -388,6 +393,7 @@ class AuthViewModel extends ChangeNotifier {
     } else {
       await _storageService.delete('bio_pwd_${_user!.email}');
       await _storageService.save('biometric_enabled', 'false');
+      setSuccess("Biometric login disabled.");
     }
     try {
       await _firestoreService.updateBiometricStatus(_user!.uid, enabled);
@@ -477,6 +483,8 @@ class AuthViewModel extends ChangeNotifier {
             _isBiometricAuthenticated = true;
             _isPinAuthenticated = true;
             _resetFailCount(selectedEmail);
+            // Important: Update primary biometric user on success
+            await _storageService.save('biometric_email', selectedEmail);
             setSuccess("Logged in as $selectedEmail!");
             _isLoading = false;
             notifyListeners();
