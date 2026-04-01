@@ -327,7 +327,7 @@ class AuthViewModel extends ChangeNotifier {
 
   Future<void> logout({bool showSuccess = true}) async {
     await _authRepository.signOut();
-    await _storageService.delete('biometric_enabled');
+    // We keep biometric_enabled in storage so the Login page knows to show the button
     _user = null;
     _isBiometricAuthenticated = false;
     _isPinAuthenticated = false;
@@ -338,13 +338,26 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> toggleBiometrics(bool enabled) async {
-    if (_user == null) return false;
+  Future<bool> toggleBiometrics(bool enabled, {String? password}) async {
+    print("ToggleBiometrics: Start. Enabled=$enabled");
+    if (_user == null) {
+      print("ToggleBiometrics: No user found.");
+      return false;
+    }
     _error = null;
     
     if (enabled) {
+      if (password == null) {
+        print("ToggleBiometrics: Password null.");
+        setError("Password is required to enable biometric login.");
+        return false;
+      }
+
       // 1. Check if hardware is even capable/supported
+      print("ToggleBiometrics: Checking hardware availability...");
       bool available = await _localAuthService.isBiometricAvailable();
+      print("ToggleBiometrics: Hardware available = $available");
+      
       if (!available) {
         setError("Your device or browser does not support biometric security.");
         notifyListeners();
@@ -352,31 +365,56 @@ class AuthViewModel extends ChangeNotifier {
       }
 
       try {
-        debugPrint("Attempting to toggle biometrics ON. Authenticating...");
-        bool success = await _localAuthService.authenticate();
-        if (!success) {
-          setError("Authentication failed. Ensure you have a PIN/Fingerprint set up.");
+        print("ToggleBiometrics: Triggering biometric enrollment (CREATE)...");
+        bool enrolled = await _localAuthService.enrollBiometrics(_user!.email);
+        print("ToggleBiometrics: User enrolled = $enrolled");
+        
+        if (!enrolled) {
+          setError("Failed to create passkey. Ensure your device has a fingerprint or screen lock.");
           notifyListeners();
           return false;
         }
+
+        // Verify password first
+        print("ToggleBiometrics: Verifying account password...");
+        bool passwordValid = await verifyPassword(password);
+        print("ToggleBiometrics: Password valid = $passwordValid");
+        
+        if (!passwordValid) {
+          setError("Incorrect password. Could not enable biometrics.");
+          return false;
+        }
+
+        // Save credentials for later login
+        print("ToggleBiometrics: Saving credentials to secure storage...");
+        await _storageService.save('biometric_email', _user!.email);
+        await _storageService.save('biometric_password', password);
+        await _storageService.save('biometric_enabled', 'true');
       } catch (e) {
+        print("ToggleBiometrics: Error caught = $e");
         setError("Hardware Error: ${e.toString()}");
         notifyListeners();
         return false;
       }
+    } else {
+      print("ToggleBiometrics: Disabling biometrics...");
+      await _storageService.delete('biometric_email');
+      await _storageService.delete('biometric_password');
+      await _storageService.save('biometric_enabled', 'false');
     }
 
     try {
-      debugPrint("Saving biometric status to Firestore/Storage: $enabled");
+      print("ToggleBiometrics: Updating Firestore status to $enabled");
       await _firestoreService.updateBiometricStatus(_user!.uid, enabled);
-      await _storageService.save('biometric_enabled', enabled.toString());
       _user = _user!.copyWith(biometricEnabled: enabled);
       if (!enabled) {
         _isBiometricAuthenticated = true;
       }
+      print("ToggleBiometrics: Success!");
       notifyListeners();
       return true;
     } catch (e) {
+      print("ToggleBiometrics: Firestore update failed = $e");
       setError(e.toString());
       return false;
     }
@@ -426,24 +464,53 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<bool> authenticateWithBiometrics() async {
-    // If we don't have a user in memory yet (e.g. fresh refresh), try to get it
-    if (_user == null) {
-      _user = await _authRepository.getCurrentUserModel();
-    }
-    
-    // We still check local storage as the source of truth for the device preference
-    final bioEnabled = await _storageService.read('biometric_enabled');
-    if (bioEnabled != 'true') return false;
-    
-    bool success = await _localAuthService.authenticate();
-    if (success) {
-      _isBiometricAuthenticated = true;
-      _biometricFailCount = 0;
-    } else {
-      _biometricFailCount++;
-    }
+    _isLoading = true;
+    _error = null;
     notifyListeners();
-    return success;
+
+    try {
+      // We check local storage as the source of truth for the device preference
+      final bioEnabled = await _storageService.read('biometric_enabled');
+      if (bioEnabled != 'true') {
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      bool hardwareSuccess = await _localAuthService.authenticate();
+      if (hardwareSuccess) {
+        // Retrieve credentials
+        final email = await _storageService.read('biometric_email');
+        final password = await _storageService.read('biometric_password');
+
+        if (email != null && password != null) {
+          // Perform actual login
+          _user = await _authRepository.login(email, password);
+          if (_user != null) {
+            _isBiometricAuthenticated = true;
+            _isPinAuthenticated = true;
+            _biometricFailCount = 0;
+            setSuccess("Logged in with biometrics!");
+            _isLoading = false;
+            notifyListeners();
+            return true;
+          } else {
+            setError("Biometric login failed. Please use email and password.");
+          }
+        } else {
+          setError("Stored credentials not found. Please log in manually.");
+        }
+      } else {
+        _biometricFailCount++;
+        setError("Biometric authentication cancelled or failed.");
+      }
+    } catch (e) {
+      setError("Biometric login error: ${e.toString()}");
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 
   Future<bool> verifyPin(String enteredPin) async {
