@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:js_util' as js_util;
 import 'dart:typed_data';
@@ -17,19 +18,15 @@ class LocalAuthService {
     }
   }
 
-  /// Helper to convert Dart data structures to pure JS ArrayBuffers
-  dynamic _toJSBuffer(Uint8List list) {
-    return js_util.getProperty(list, 'buffer');
-  }
+  dynamic _toJSBuffer(Uint8List list) => js_util.getProperty(list, 'buffer');
 
   /// STEP 1: ENROLL
   Future<bool> enrollBiometrics(String email) async {
     try {
-      print("WebAuthn: Preparing enrollment for $email...");
+      print("WebAuthn: Enrolling $email...");
       final dynamic credentials = js_util.getProperty(html.window.navigator, 'credentials');
-      
       final Uint8List challenge = Uint8List.fromList(List.generate(32, (i) => i));
-      final Uint8List userId = Uint8List.fromList(email.codeUnits);
+      final Uint8List userId = Uint8List.fromList(utf8.encode(email));
 
       final dynamic publicKey = js_util.newObject();
       js_util.setProperty(publicKey, 'challenge', _toJSBuffer(challenge));
@@ -45,73 +42,61 @@ class LocalAuthService {
       js_util.setProperty(user, 'displayName', email);
       js_util.setProperty(publicKey, 'user', user);
 
-      // FIX: Manually build the algorithms list to ensure it's a JS Array
-      // This solves the "missing algorithm identifiers" warning in Chrome.
       final dynamic algList = js_util.callConstructor(js_util.getProperty(html.window, 'Array'), []);
-      
       final dynamic alg1 = js_util.newObject();
       js_util.setProperty(alg1, 'type', 'public-key');
-      js_util.setProperty(alg1, 'alg', -7); // ES256
+      js_util.setProperty(alg1, 'alg', -7);
       js_util.callMethod(algList, 'push', [alg1]);
-
-      final dynamic alg2 = js_util.newObject();
-      js_util.setProperty(alg2, 'type', 'public-key');
-      js_util.setProperty(alg2, 'alg', -257); // RS256
-      js_util.callMethod(algList, 'push', [alg2]);
-
       js_util.setProperty(publicKey, 'pubKeyCredParams', algList);
 
       final dynamic authSelection = js_util.newObject();
       js_util.setProperty(authSelection, 'authenticatorAttachment', 'platform');
       js_util.setProperty(authSelection, 'userVerification', 'required');
-      js_util.setProperty(authSelection, 'residentKey', 'preferred');
+      js_util.setProperty(authSelection, 'residentKey', 'required');
       js_util.setProperty(publicKey, 'authenticatorSelection', authSelection);
       
-      js_util.setProperty(publicKey, 'timeout', 60000);
-
       final dynamic options = js_util.newObject();
       js_util.setProperty(options, 'publicKey', publicKey);
 
-      print("WebAuthn: Triggering browser 'create' prompt...");
-      final dynamic result = await js_util.promiseToFuture(js_util.callMethod(credentials, 'create', [options]));
-      
-      if (result != null) {
-        print("WebAuthn: Enrollment Successful.");
-        return true;
-      }
-      return false;
+      await js_util.promiseToFuture(js_util.callMethod(credentials, 'create', [options]));
+      return true;
     } catch (e) {
-      print("WebAuthn: Enrollment Error: $e");
+      print("WebAuthn Enrollment Error: $e");
       return false;
     }
   }
 
   /// STEP 2: AUTHENTICATE
-  Future<bool> authenticate() async {
+  Future<String?> authenticate() async {
     try {
-      print("WebAuthn: Preparing authentication...");
+      print("WebAuthn: Requesting authentication...");
       final dynamic credentials = js_util.getProperty(html.window.navigator, 'credentials');
       final Uint8List challenge = Uint8List.fromList(List.generate(32, (i) => i));
 
       final dynamic publicKey = js_util.newObject();
       js_util.setProperty(publicKey, 'challenge', _toJSBuffer(challenge));
-      js_util.setProperty(publicKey, 'timeout', 60000);
       js_util.setProperty(publicKey, 'userVerification', 'required');
+      js_util.setProperty(publicKey, 'rpId', 'localhost');
       
       final dynamic options = js_util.newObject();
       js_util.setProperty(options, 'publicKey', publicKey);
 
-      print("WebAuthn: Triggering browser 'get' prompt...");
       final dynamic result = await js_util.promiseToFuture(js_util.callMethod(credentials, 'get', [options]));
       
       if (result != null) {
-        print("WebAuthn: Verification Successful.");
-        return true;
+        final dynamic response = js_util.getProperty(result, 'response');
+        final ByteBuffer? userHandle = js_util.getProperty(response, 'userHandle');
+        
+        if (userHandle != null) {
+          final String selectedEmail = utf8.decode(userHandle.asUint8List());
+          print("WebAuthn: User selected in browser: $selectedEmail");
+          return selectedEmail;
+        }
       }
-      return false;
+      return null;
     } catch (e) {
-      print("WebAuthn: Verification Failed: $e");
-      return false;
+      print("WebAuthn Verification Error: $e");
+      return null;
     }
   }
 }

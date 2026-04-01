@@ -24,14 +24,11 @@ class AuthViewModel extends ChangeNotifier {
   String? _success;
   bool _isBiometricAuthenticated = false;
   bool _isPinAuthenticated = false;
-  int _biometricFailCount = 0;
   Timer? _errorTimer;
   Timer? _successTimer;
 
-  // OTP Verification State
-  String? _currentOTP;
-  Map<String, dynamic>? _pendingRegistrationData;
-  DateTime? _otpSentTime;
+  // Persistent lockout tracking
+  Map<String, int> _emailFailCounts = {};
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
@@ -39,14 +36,31 @@ class AuthViewModel extends ChangeNotifier {
   String? get success => _success;
   bool get isBiometricAuthenticated => _isBiometricAuthenticated;
   bool get isPinAuthenticated => _isPinAuthenticated;
-  bool get biometricLockedOut => _biometricFailCount >= 3;
+  
+  bool isEmailLockedOut(String email) {
+    return (_emailFailCounts[email] ?? 0) >= 3;
+  }
+
+  Future<bool> isDeviceBiometricLocked({String? email}) async {
+    final targetEmail = (email != null && email.isNotEmpty) 
+        ? email.trim() 
+        : await _storageService.read('biometric_email');
+        
+    if (targetEmail == null) return false;
+    return isEmailLockedOut(targetEmail);
+  }
+
+  bool get biometricLockedOut {
+    if (_user != null) return isEmailLockedOut(_user!.email);
+    return false;
+  }
+
   bool get pinEnabled => _user?.securePin != null && _user!.securePin!.isNotEmpty;
 
   AuthViewModel() {
     _init();
   }
 
-  /// Sets an error message and auto-clears it after [seconds] seconds.
   void setError(String message, {double seconds = 2.8}) {
     _errorTimer?.cancel();
     _error = message;
@@ -62,7 +76,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sets a success message and auto-clears it after [seconds] seconds.
   void setSuccess(String message, {double seconds = 2.8}) {
     _successTimer?.cancel();
     _success = message;
@@ -78,14 +91,16 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Generates a 6-digit OTP and sends it to the user's email.
+  // OTP Verification State
+  String? _currentOTP;
+  Map<String, dynamic>? _pendingRegistrationData;
+  DateTime? _otpSentTime;
+
   Future<bool> sendOTPForRegistration(String email, Map<String, dynamic> registrationData) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
-      // 1. Check if email already has a profile in Firestore
       bool isTaken = await _firestoreService.isEmailTaken(email);
       if (isTaken) {
         setError("An account already exists for this email.");
@@ -93,11 +108,8 @@ class AuthViewModel extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-
-      // 2. Generate 6-digit OTP
       final random = Random();
       final otp = (100000 + random.nextInt(900000)).toString();
-      
       bool sent = await EmailService.sendOTP(email, otp);
       if (sent) {
         _currentOTP = otp;
@@ -112,33 +124,26 @@ class AuthViewModel extends ChangeNotifier {
     } catch (e) {
       setError(e.toString());
     }
-
     _isLoading = false;
     notifyListeners();
     return false;
   }
 
-  /// Verifies the entered OTP and completes registration.
   Future<bool> verifyOTPAndRegister(String enteredOTP) async {
     if (_currentOTP == null || _pendingRegistrationData == null) {
       setError("Session expired. Please register again.");
       return false;
     }
-
     if (enteredOTP != _currentOTP) {
       setError("Invalid verification code. Please check and try again.");
       return false;
     }
-
-    // Check expiry (e.g., 10 minutes)
     if (DateTime.now().difference(_otpSentTime!).inMinutes > 10) {
       setError("Verification code expired. Please request a new one.");
       return false;
     }
-
     _isLoading = true;
     notifyListeners();
-
     try {
       final data = _pendingRegistrationData!;
       bool success = await register(
@@ -150,12 +155,10 @@ class AuthViewModel extends ChangeNotifier {
         data['height'],
         profileImageData: data['profileImageData'],
       );
-
       if (success) {
         _currentOTP = null;
         _pendingRegistrationData = null;
       }
-      
       _isLoading = false;
       notifyListeners();
       return success;
@@ -167,7 +170,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Resends the OTP to the pending email.
   Future<bool> resendOTP() async {
     if (_pendingRegistrationData == null) return false;
     return sendOTPForRegistration(_pendingRegistrationData!['email'], _pendingRegistrationData!);
@@ -180,8 +182,22 @@ class AuthViewModel extends ChangeNotifier {
     
     // Check local storage for biometric preference
     final bioEnabled = await _storageService.read('biometric_enabled');
+    final bioEmail = await _storageService.read('biometric_email');
     
-    // Initially, if no user or biometrics/PIN are disabled, we don't need biometric check
+    if (bioEmail != null) {
+      final storedFailCount = await _storageService.read('fail_count_$bioEmail');
+      if (storedFailCount != null) {
+        _emailFailCounts[bioEmail] = int.tryParse(storedFailCount) ?? 0;
+      }
+    }
+
+    if (_user != null) {
+      final storedFailCount = await _storageService.read('fail_count_${_user!.email}');
+      if (storedFailCount != null) {
+        _emailFailCounts[_user!.email] = int.tryParse(storedFailCount) ?? 0;
+      }
+    }
+
     if (_user == null || (bioEnabled != 'true' && !pinEnabled)) {
       _isBiometricAuthenticated = true;
       _isPinAuthenticated = true;
@@ -201,7 +217,7 @@ class AuthViewModel extends ChangeNotifier {
       if (_user != null) {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
-        _biometricFailCount = 0;
+        _resetFailCount(_user!.email);
         setSuccess("Welcome back, ${_user!.fullName}!");
       }
       _isLoading = false;
@@ -225,7 +241,7 @@ class AuthViewModel extends ChangeNotifier {
       if (_user != null) {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
-        _biometricFailCount = 0;
+        _resetFailCount(_user!.email);
         setSuccess("Account created successfully!");
       }
       _isLoading = false;
@@ -249,10 +265,9 @@ class AuthViewModel extends ChangeNotifier {
       if (_user != null) {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
-        _biometricFailCount = 0;
+        _resetFailCount(_user!.email);
         setSuccess("Signed in with Google successfully!");
       } else {
-        // Handle cancellation
         setError("Sign-in with Google was cancelled. Please try again.");
       }
       _isLoading = false;
@@ -276,10 +291,9 @@ class AuthViewModel extends ChangeNotifier {
       if (_user != null) {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
-        _biometricFailCount = 0;
+        _resetFailCount(_user!.email);
         setSuccess("Signed in with Facebook successfully!");
       } else {
-        // Handle cancellation
         setError("Sign-in with Facebook was cancelled. Please try again.");
       }
       _isLoading = false;
@@ -302,7 +316,6 @@ class AuthViewModel extends ChangeNotifier {
       _user = null;
       _isBiometricAuthenticated = false;
       _isPinAuthenticated = false;
-      _biometricFailCount = 0;
       setSuccess("Your account has been permanently deleted.");
       _isLoading = false;
       notifyListeners();
@@ -327,11 +340,9 @@ class AuthViewModel extends ChangeNotifier {
 
   Future<void> logout({bool showSuccess = true}) async {
     await _authRepository.signOut();
-    // We keep biometric_enabled in storage so the Login page knows to show the button
     _user = null;
     _isBiometricAuthenticated = false;
     _isPinAuthenticated = false;
-    _biometricFailCount = 0;
     if (showSuccess) {
       setSuccess("Logged out successfully.");
     }
@@ -339,82 +350,54 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<bool> toggleBiometrics(bool enabled, {String? password}) async {
-    print("ToggleBiometrics: Start. Enabled=$enabled");
-    if (_user == null) {
-      print("ToggleBiometrics: No user found.");
-      return false;
-    }
+    if (_user == null) return false;
     _error = null;
-    
     if (enabled) {
       if (password == null) {
-        print("ToggleBiometrics: Password null.");
         setError("Password is required to enable biometric login.");
         return false;
       }
-
-      // 1. Check if hardware is even capable/supported
-      print("ToggleBiometrics: Checking hardware availability...");
       bool available = await _localAuthService.isBiometricAvailable();
-      print("ToggleBiometrics: Hardware available = $available");
-      
       if (!available) {
         setError("Your device or browser does not support biometric security.");
         notifyListeners();
         return false;
       }
-
       try {
-        print("ToggleBiometrics: Triggering biometric enrollment (CREATE)...");
         bool enrolled = await _localAuthService.enrollBiometrics(_user!.email);
-        print("ToggleBiometrics: User enrolled = $enrolled");
-        
         if (!enrolled) {
           setError("Failed to create passkey. Ensure your device has a fingerprint or screen lock.");
           notifyListeners();
           return false;
         }
-
-        // Verify password first
-        print("ToggleBiometrics: Verifying account password...");
         bool passwordValid = await verifyPassword(password);
-        print("ToggleBiometrics: Password valid = $passwordValid");
-        
         if (!passwordValid) {
           setError("Incorrect password. Could not enable biometrics.");
           return false;
         }
-
-        // Save credentials for later login
-        print("ToggleBiometrics: Saving credentials to secure storage...");
-        await _storageService.save('biometric_email', _user!.email);
-        await _storageService.save('biometric_password', password);
+        // Save to specific account vault
+        await _storageService.save('bio_pwd_${_user!.email}', password);
+        await _storageService.save('biometric_email', _user!.email); // Track primary
         await _storageService.save('biometric_enabled', 'true');
+        setSuccess("Biometric login enabled successfully!");
       } catch (e) {
-        print("ToggleBiometrics: Error caught = $e");
         setError("Hardware Error: ${e.toString()}");
         notifyListeners();
         return false;
       }
     } else {
-      print("ToggleBiometrics: Disabling biometrics...");
-      await _storageService.delete('biometric_email');
-      await _storageService.delete('biometric_password');
+      await _storageService.delete('bio_pwd_${_user!.email}');
       await _storageService.save('biometric_enabled', 'false');
     }
-
     try {
-      print("ToggleBiometrics: Updating Firestore status to $enabled");
       await _firestoreService.updateBiometricStatus(_user!.uid, enabled);
       _user = _user!.copyWith(biometricEnabled: enabled);
       if (!enabled) {
         _isBiometricAuthenticated = true;
       }
-      print("ToggleBiometrics: Success!");
       notifyListeners();
       return true;
     } catch (e) {
-      print("ToggleBiometrics: Firestore update failed = $e");
       setError(e.toString());
       return false;
     }
@@ -427,7 +410,6 @@ class AuthViewModel extends ChangeNotifier {
     try {
       await _firestoreService.updateSecurePin(_user!.uid, pin);
       _user = _user!.copyWith(securePin: pin);
-      // Ensure we stay authenticated after setting the PIN
       _isPinAuthenticated = true; 
       _isBiometricAuthenticated = true;
       setSuccess("Secure PIN set successfully!");
@@ -449,8 +431,6 @@ class AuthViewModel extends ChangeNotifier {
     try {
       await _firestoreService.updateSecurePin(_user!.uid, null);
       _user = _user!.copyWith(clearPin: true);
-      // We don't set this to true anymore, we let the session persist 
-      // without triggering an authentication refresh.
       setSuccess("Secure PIN disabled.");
       _isLoading = false;
       notifyListeners();
@@ -463,49 +443,65 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> authenticateWithBiometrics() async {
+  Future<bool> authenticateWithBiometrics({String? enteredEmail}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // We check local storage as the source of truth for the device preference
-      final bioEnabled = await _storageService.read('biometric_enabled');
-      if (bioEnabled != 'true') {
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
+      // 1. Trigger the browser prompt to see WHO touched the sensor
+      final String? selectedEmail = await _localAuthService.authenticate();
+      
+      if (selectedEmail != null) {
+        // 2. Validate if the user selected in the browser matches what they typed (if any)
+        if (enteredEmail != null && enteredEmail.isNotEmpty && enteredEmail.trim() != selectedEmail) {
+          setError("You selected the passkey for $selectedEmail, but typed $enteredEmail.");
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
 
-      bool hardwareSuccess = await _localAuthService.authenticate();
-      if (hardwareSuccess) {
-        // Retrieve credentials
-        final email = await _storageService.read('biometric_email');
-        final password = await _storageService.read('biometric_password');
+        // 3. Check for lockouts on the selected account
+        if (isEmailLockedOut(selectedEmail)) {
+          setError("Biometrics locked for $selectedEmail. Use password.");
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
 
-        if (email != null && password != null) {
-          // Perform actual login
-          _user = await _authRepository.login(email, password);
+        // 4. Retrieve password from the vault for THIS specific email
+        final password = await _storageService.read('bio_pwd_$selectedEmail');
+        if (password != null) {
+          _user = await _authRepository.login(selectedEmail, password);
           if (_user != null) {
             _isBiometricAuthenticated = true;
             _isPinAuthenticated = true;
-            _biometricFailCount = 0;
-            setSuccess("Logged in with biometrics!");
+            _resetFailCount(selectedEmail);
+            setSuccess("Logged in as $selectedEmail!");
             _isLoading = false;
             notifyListeners();
             return true;
           } else {
-            setError("Biometric login failed. Please use email and password.");
+            setError("Login failed. Stored credentials might be outdated.");
           }
         } else {
-          setError("Stored credentials not found. Please log in manually.");
+          setError("No stored password found for $selectedEmail. Please log in manually once.");
         }
       } else {
-        _biometricFailCount++;
-        setError("Biometric authentication cancelled or failed.");
+        // If we don't have a selectedEmail, it means verification failed or was cancelled
+        // We increment the strike for the 'enrolledEmail' if one was typed, or the primary one
+        final primaryEmail = await _storageService.read('biometric_email');
+        final emailToStrike = (enteredEmail != null && enteredEmail.isNotEmpty) ? enteredEmail : primaryEmail;
+        
+        if (emailToStrike != null) {
+          _incrementFailCount(emailToStrike);
+          setError("Verification failed. Attempt ${_emailFailCounts[emailToStrike]}/3.");
+        } else {
+          setError("Biometric verification cancelled.");
+        }
       }
     } catch (e) {
-      setError("Biometric login error: ${e.toString()}");
+      setError("Biometric error: ${e.toString()}");
     }
 
     _isLoading = false;
@@ -517,14 +513,14 @@ class AuthViewModel extends ChangeNotifier {
     if (_user == null || _user!.securePin == null) return false;
     if (_user!.securePin == enteredPin) {
       _isPinAuthenticated = true;
-      _isBiometricAuthenticated = true; // PIN serves as a manual override for Biometrics
-      _biometricFailCount = 0;
+      _isBiometricAuthenticated = true; 
+      _resetFailCount(_user!.email);
       setSuccess("App unlocked successfully!");
       notifyListeners();
       return true;
     } else {
-      _biometricFailCount++;
-      setError("Incorrect PIN. Attempt $_biometricFailCount/3.");
+      _incrementFailCount(_user!.email);
+      setError("Incorrect PIN. Attempt ${_emailFailCounts[_user!.email]}/3.");
       notifyListeners();
       return false;
     }
@@ -536,12 +532,11 @@ class AuthViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      // Re-authenticating using login repository logic
       final result = await _authRepository.login(_user!.email, password);
       if (result != null) {
         _isBiometricAuthenticated = true;
         _isPinAuthenticated = true;
-        _biometricFailCount = 0;
+        _resetFailCount(_user!.email);
       }
       _isLoading = false;
       notifyListeners();
@@ -554,10 +549,21 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  void _incrementFailCount(String email) async {
+    _emailFailCounts[email] = (_emailFailCounts[email] ?? 0) + 1;
+    await _storageService.save('fail_count_$email', _emailFailCounts[email].toString());
+    notifyListeners();
+  }
+
+  void _resetFailCount(String email) async {
+    _emailFailCounts[email] = 0;
+    await _storageService.delete('fail_count_$email');
+    notifyListeners();
+  }
+
   void resetBiometricAuth() {
     _isBiometricAuthenticated = false;
     _isPinAuthenticated = false;
-    _biometricFailCount = 0;
     notifyListeners();
   }
 }

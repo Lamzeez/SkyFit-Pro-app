@@ -49,3 +49,4 @@ app.*.map.json
 .env
 lib/utils/env_config.dart
 cloudbuild.yaml
+dart_defines.json

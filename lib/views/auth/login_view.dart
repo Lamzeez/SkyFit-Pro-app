@@ -24,6 +24,15 @@ class _LoginViewState extends State<LoginView> {
   void initState() {
     super.initState();
     _checkBiometricPreference();
+    // Refresh UI as user types to check lockout for specific emails
+    _emailController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkBiometricPreference() async {
@@ -228,33 +237,48 @@ class _LoginViewState extends State<LoginView> {
                         // Biometric button (conditional)
                         if (_canUseBiometrics) ...[
                           const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: TextButton.icon(
-                              onPressed: authViewModel.isLoading
-                                  ? null
-                                  : () async {
-                                      bool success = await authViewModel
-                                          .authenticateWithBiometrics();
-                                      if (success && mounted) {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const HomeView()),
-                                        );
-                                      }
-                                    },
-                              icon: const Icon(Icons.fingerprint,
-                                  color: Color(0xFF38B6FF)),
-                              label: const Text(
-                                'Login with Biometrics',
-                                style: TextStyle(color: Color(0xFF38B6FF)),
-                              ),
-                            ),
+                          FutureBuilder<bool>(
+                            future: authViewModel.isDeviceBiometricLocked(email: _emailController.text),
+                            builder: (context, snapshot) {
+                              final isLocked = snapshot.data ?? false;
+                              return SizedBox(
+                                width: double.infinity,
+                                child: isLocked
+                                    ? const Text(
+                                        "Biometrics locked due to too many attempts. Please use password.",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                            color: Colors.redAccent, fontSize: 12),
+                                      )
+                                    : TextButton.icon(
+                                        onPressed: authViewModel.isLoading
+                                            ? null
+                                            : () async {
+                                                bool success = await authViewModel
+                                                    .authenticateWithBiometrics(
+                                                        enteredEmail:
+                                                            _emailController.text);
+                                                if (success && mounted) {
+                                                  Navigator.pushReplacement(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            const HomeView()),
+                                                  );
+                                                }
+                                              },
+                                        icon: const Icon(Icons.fingerprint,
+                                            color: Color(0xFF38B6FF)),
+                                        label: const Text(
+                                          'Login with Biometrics',
+                                          style:
+                                              TextStyle(color: Color(0xFF38B6FF)),
+                                        ),
+                                      ),
+                              );
+                            }
                           ),
                         ],
-
                         const SizedBox(height: 24),
 
                         // OR CONTINUE WITH divider
