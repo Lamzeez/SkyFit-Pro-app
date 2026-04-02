@@ -1,17 +1,14 @@
 # Stage 1: Build
-FROM debian:latest AS build-env
+FROM ghcr.io/cirruslabs/flutter:3.24.3 AS build-env
 
-RUN apt-get update && apt-get install -y curl git unzip xz-utils zip libglu1-mesa
-RUN git clone https://github.com/flutter/flutter.git /usr/local/flutter
-ENV PATH="/usr/local/flutter/bin:/usr/local/flutter/bin/cache/dart-sdk/bin:${PATH}"
-
-RUN flutter doctor
-RUN flutter config --enable-web
+# Set as root for initial setup but configure git safety
+USER root
+RUN git config --global --add safe.directory /sdks/flutter
 
 WORKDIR /app
 COPY . .
 
-# Build-time environment variables for Flutter
+# Build-time environment variables
 ARG FIREBASE_API_KEY
 ARG FIREBASE_AUTH_DOMAIN
 ARG FIREBASE_PROJECT_ID
@@ -23,7 +20,7 @@ ARG OPENWEATHER_API_KEY
 ARG GOOGLE_CLIENT_ID
 ARG FACEBOOK_APP_ID
 
-# Inject keys into web/index.html using sed if provided
+# Inject keys into web/index.html using sed
 RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/885191312691-pdr275ie3rp94tcbtn45mg58t16r9jvv.apps.googleusercontent.com/$GOOGLE_CLIENT_ID/g" web/index.html; \
     fi && \
@@ -31,6 +28,8 @@ RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/1670995600575868/$FACEBOOK_APP_ID/g" web/index.html; \
     fi
 
+# Enable web and build
+RUN flutter config --enable-web
 RUN flutter build web --release \
     --dart-define=FIREBASE_API_KEY=$FIREBASE_API_KEY \
     --dart-define=FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN \
