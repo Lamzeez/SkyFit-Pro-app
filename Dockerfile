@@ -7,24 +7,35 @@ RUN git config --global --add safe.directory /sdks/flutter
 WORKDIR /app
 COPY . .
 
-# Build-time environment variables (Render Dashboard)
-ARG FIREBASE_API_KEY
-ARG FIREBASE_AUTH_DOMAIN
-ARG FIREBASE_PROJECT_ID
-ARG FIREBASE_STORAGE_BUCKET
-ARG FIREBASE_MESSAGING_SENDER_ID
-ARG FIREBASE_APP_ID
-ARG FIREBASE_MEASUREMENT_ID
-ARG OPENWEATHER_API_KEY
-ARG GOOGLE_CLIENT_ID
-ARG FACEBOOK_APP_ID
+# Build-time environment variables
+# Accept both with and without the prefix for maximum reliability on Render
+ARG DOCKER_BUILD_ARG_FIREBASE_API_KEY
+ARG DOCKER_BUILD_ARG_FIREBASE_AUTH_DOMAIN
+ARG DOCKER_BUILD_ARG_FIREBASE_PROJECT_ID
+ARG DOCKER_BUILD_ARG_FIREBASE_STORAGE_BUCKET
+ARG DOCKER_BUILD_ARG_FIREBASE_MESSAGING_SENDER_ID
+ARG DOCKER_BUILD_ARG_FIREBASE_APP_ID
+ARG DOCKER_BUILD_ARG_FIREBASE_MEASUREMENT_ID
+ARG DOCKER_BUILD_ARG_OPENWEATHER_API_KEY
+ARG DOCKER_BUILD_ARG_GOOGLE_CLIENT_ID
+ARG DOCKER_BUILD_ARG_FACEBOOK_APP_ID
 
-# 1. VERIFICATION: Fail the build if critical keys are missing
-# If this fails, you haven't added the DOCKER_BUILD_ARG_ prefix in Render Dashboard
-RUN if [ -z "$FIREBASE_API_KEY" ]; then echo "BUILD ERROR: FIREBASE_API_KEY is empty. Check Render Env Vars (must have DOCKER_BUILD_ARG_ prefix)"; exit 1; fi
+# Set final variables, prioritizing the prefixed ones
+ENV FIREBASE_API_KEY=${DOCKER_BUILD_ARG_FIREBASE_API_KEY}
+ENV FIREBASE_AUTH_DOMAIN=${DOCKER_BUILD_ARG_FIREBASE_AUTH_DOMAIN}
+ENV FIREBASE_PROJECT_ID=${DOCKER_BUILD_ARG_FIREBASE_PROJECT_ID}
+ENV FIREBASE_STORAGE_BUCKET=${DOCKER_BUILD_ARG_FIREBASE_STORAGE_BUCKET}
+ENV FIREBASE_MESSAGING_SENDER_ID=${DOCKER_BUILD_ARG_FIREBASE_MESSAGING_SENDER_ID}
+ENV FIREBASE_APP_ID=${DOCKER_BUILD_ARG_FIREBASE_APP_ID}
+ENV FIREBASE_MEASUREMENT_ID=${DOCKER_BUILD_ARG_FIREBASE_MEASUREMENT_ID}
+ENV OPENWEATHER_API_KEY=${DOCKER_BUILD_ARG_OPENWEATHER_API_KEY}
+ENV GOOGLE_CLIENT_ID=${DOCKER_BUILD_ARG_GOOGLE_CLIENT_ID}
+ENV FACEBOOK_APP_ID=${DOCKER_BUILD_ARG_FACEBOOK_APP_ID}
+
+# 1. VERIFICATION: This will fail if Render isn't passing the arguments correctly
+RUN if [ -z "$FIREBASE_API_KEY" ]; then echo "BUILD ERROR: FIREBASE_API_KEY is empty."; exit 1; fi
 
 # 2. LITERAL INJECTION into env_config.dart
-# This replaces the logic with absolute strings so no --dart-define is needed
 RUN mkdir -p lib/utils && \
     echo "class EnvConfig {" > lib/utils/env_config.dart && \
     echo "  static const String openWeatherApiKey = '$OPENWEATHER_API_KEY';" >> lib/utils/env_config.dart && \
@@ -47,7 +58,7 @@ RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/1670995600575868/$FACEBOOK_APP_ID/g" web/index.html; \
     fi
 
-# 4. Clean Build
+# 4. Build
 RUN rm -rf build/ && \
     flutter pub get && \
     flutter config --enable-web && \
