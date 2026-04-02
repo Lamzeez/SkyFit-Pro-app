@@ -106,11 +106,11 @@ class _LoginViewState extends State<LoginView> {
                         ).createShader(bounds),
                         child: const Icon(
                           Icons.cloud_queue,
-                          size: 28,
+                          size: 44,
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       ShaderMask(
                         shaderCallback: (bounds) => const LinearGradient(
                           colors: [Color(0xFF38B6FF), Color(0xFF00E5CC)],
@@ -118,7 +118,7 @@ class _LoginViewState extends State<LoginView> {
                         child: const Text(
                           'SkyFit Pro',
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
@@ -235,7 +235,7 @@ class _LoginViewState extends State<LoginView> {
                         ),
 
                         // Biometric button (conditional)
-                        if (_canUseBiometrics) ...[
+                        if (_canUseBiometrics && !authViewModel.isEmailLockedOut(_emailController.text.trim())) ...[
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
@@ -480,49 +480,6 @@ class _LoginViewState extends State<LoginView> {
                     ],
                   ),
 
-                  const SizedBox(height: 32),
-
-                  // Secure Environment badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF131C2E)
-                          : const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF1E3A2E)
-                            : Colors.green.shade200,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF4CAF50),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'SECURE ENVIRONMENT',
-                          style: TextStyle(
-                            fontSize: 11,
-                            letterSpacing: 1.2,
-                            fontWeight: FontWeight.bold,
-                            color: isDark
-                                ? const Color(0xFF4CAF50)
-                                : Colors.green.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),

@@ -339,9 +339,9 @@ class _RegisterViewState extends State<RegisterView> {
                           colors: [Color(0xFF38B6FF), Color(0xFF00E5CC)],
                         ).createShader(bounds),
                         child: const Icon(Icons.cloud_queue,
-                            size: 26, color: Colors.white),
+                            size: 44, color: Colors.white),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       ShaderMask(
                         shaderCallback: (bounds) => const LinearGradient(
                           colors: [Color(0xFF38B6FF), Color(0xFF00E5CC)],
@@ -349,7 +349,7 @@ class _RegisterViewState extends State<RegisterView> {
                         child: const Text(
                           'SkyFit Pro',
                           style: TextStyle(
-                            fontSize: 19,
+                            fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),

@@ -30,6 +30,8 @@ class AuthViewModel extends ChangeNotifier {
   // Persistent lockout tracking
   Map<String, int> _emailFailCounts = {};
 
+  Map<String, int> get emailFailCounts => _emailFailCounts;
+
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -503,7 +505,11 @@ class AuthViewModel extends ChangeNotifier {
         
         if (emailToStrike != null) {
           _incrementFailCount(emailToStrike);
-          setError("Verification failed. Attempt ${_emailFailCounts[emailToStrike]}/3.");
+          if (isEmailLockedOut(emailToStrike)) {
+            setError("Biometrics locked for $emailToStrike. Use password.");
+          } else {
+            setError("Verification failed. Attempt ${_emailFailCounts[emailToStrike]}/3.");
+          }
         } else {
           setError("Biometric verification cancelled.");
         }
