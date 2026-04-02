@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM ghcr.io/cirruslabs/flutter:3.24.3 AS build-env
+FROM ghcr.io/cirruslabs/flutter:latest AS build-env
 
 # Set as root for initial setup but configure git safety
 USER root
@@ -28,9 +28,12 @@ RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/1670995600575868/$FACEBOOK_APP_ID/g" web/index.html; \
     fi
 
-# Enable web and build
+# Fetch dependencies first
+RUN flutter pub get
+
+# Enable web and build with verbose output for debugging
 RUN flutter config --enable-web
-RUN flutter build web --release \
+RUN flutter build web --release --verbose \
     --dart-define=FIREBASE_API_KEY=$FIREBASE_API_KEY \
     --dart-define=FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN \
     --dart-define=FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
