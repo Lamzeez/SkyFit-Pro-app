@@ -234,36 +234,50 @@ class _LoginViewState extends State<LoginView> {
                           },
                         ),
 
-                        // Biometric button (conditional)
-                        if (_canUseBiometrics && !authViewModel.isEmailLockedOut(_emailController.text.trim())) ...[
+                        // Biometric Section
+                        if (_canUseBiometrics) ...[
                           const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: TextButton.icon(
-                              onPressed: authViewModel.isLoading
-                                  ? null
-                                  : () async {
-                                      bool success = await authViewModel
-                                          .authenticateWithBiometrics(
-                                              enteredEmail:
-                                                  _emailController.text);
-                                      if (success && mounted) {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const HomeView()),
-                                        );
-                                      }
-                                    },
-                              icon: const Icon(Icons.fingerprint,
-                                  color: Color(0xFF38B6FF)),
-                              label: const Text(
-                                'Login with Biometrics',
-                                style: TextStyle(color: Color(0xFF38B6FF)),
+                          if (authViewModel.isEmailLockedOut(_emailController.text.trim()))
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Text(
+                                "3 consecutive fail attempts, biometrics login disabled. Login with email and password instead.",
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            )
+                          else
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextButton.icon(
+                                onPressed: authViewModel.isLoading
+                                    ? null
+                                    : () async {
+                                        bool success = await authViewModel
+                                            .authenticateWithBiometrics(
+                                                enteredEmail:
+                                                    _emailController.text);
+                                        if (success && mounted) {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const HomeView()),
+                                          );
+                                        }
+                                      },
+                                icon: const Icon(Icons.fingerprint,
+                                    color: Color(0xFF38B6FF)),
+                                label: const Text(
+                                  'Login with Biometrics',
+                                  style: TextStyle(color: Color(0xFF38B6FF)),
+                                ),
                               ),
                             ),
-                          ),
                         ],
                         const SizedBox(height: 24),
 

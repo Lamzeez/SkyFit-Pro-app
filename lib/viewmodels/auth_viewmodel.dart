@@ -200,9 +200,21 @@ class AuthViewModel extends ChangeNotifier {
       }
     }
 
-    if (_user == null || (bioEnabled != 'true' && !pinEnabled)) {
+    // Check if security should be active
+    bool shouldLock = false;
+    if (_user != null) {
+      if (bioEnabled == 'true' || pinEnabled) {
+        shouldLock = true;
+      }
+    }
+
+    if (_user == null || !shouldLock) {
       _isBiometricAuthenticated = true;
       _isPinAuthenticated = true;
+    } else {
+      // If it should lock, ensure flags are false (reset)
+      _isBiometricAuthenticated = false;
+      _isPinAuthenticated = false;
     }
     
     _isLoading = false;
