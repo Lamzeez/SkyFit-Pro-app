@@ -1,7 +1,6 @@
 # Stage 1: Build
 FROM ghcr.io/cirruslabs/flutter:latest AS build-env
 
-# Set as root for initial setup but configure git safety
 USER root
 RUN git config --global --add safe.directory /sdks/flutter
 
@@ -20,7 +19,22 @@ ARG OPENWEATHER_API_KEY
 ARG GOOGLE_CLIENT_ID
 ARG FACEBOOK_APP_ID
 
-# Inject keys into web/index.html using sed
+# 1. GENERATE THE MISSING env_config.dart (since it is gitignored)
+RUN mkdir -p lib/utils && \
+    echo "class EnvConfig {" > lib/utils/env_config.dart && \
+    echo "  static const String openWeatherApiKey = String.fromEnvironment('OPENWEATHER_API_KEY');" >> lib/utils/env_config.dart && \
+    echo "  static const String firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY');" >> lib/utils/env_config.dart && \
+    echo "  static const String firebaseAuthDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');" >> lib/utils/env_config.dart && \
+    echo "  static const String firebaseProjectId = String.fromEnvironment('FIREBASE_PROJECT_ID');" >> lib/utils/env_config.dart && \
+    echo "  static const String firebaseStorageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');" >> lib/utils/env_config.dart && \
+    echo "  static const String firebaseMessagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');" >> lib/utils/env_config.dart && \
+    echo "  static const String firebaseAppId = String.fromEnvironment('FIREBASE_APP_ID');" >> lib/utils/env_config.dart && \
+    echo "  static const String firebaseMeasurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID');" >> lib/utils/env_config.dart && \
+    echo "  static const String facebookAppId = String.fromEnvironment('FACEBOOK_APP_ID');" >> lib/utils/env_config.dart && \
+    echo "  static bool get isFirebaseConfigured => firebaseApiKey.isNotEmpty && firebaseProjectId.isNotEmpty && firebaseAppId.isNotEmpty;" >> lib/utils/env_config.dart && \
+    echo "}" >> lib/utils/env_config.dart
+
+# 2. Inject keys into web/index.html using sed
 RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/885191312691-pdr275ie3rp94tcbtn45mg58t16r9jvv.apps.googleusercontent.com/$GOOGLE_CLIENT_ID/g" web/index.html; \
     fi && \
@@ -28,12 +42,12 @@ RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/1670995600575868/$FACEBOOK_APP_ID/g" web/index.html; \
     fi
 
-# Fetch dependencies first
+# 3. Fetch dependencies
 RUN flutter pub get
 
-# Enable web and build with verbose output for debugging
+# 4. Build (Using --no-source-maps to save memory on Render Free Tier)
 RUN flutter config --enable-web
-RUN flutter build web --release --verbose \
+RUN flutter build web --release --no-source-maps \
     --dart-define=FIREBASE_API_KEY=$FIREBASE_API_KEY \
     --dart-define=FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN \
     --dart-define=FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
