@@ -19,7 +19,21 @@ ARG OPENWEATHER_API_KEY
 ARG GOOGLE_CLIENT_ID
 ARG FACEBOOK_APP_ID
 
-# 1. Generate env_config.dart using String.fromEnvironment (Matches original project logic)
+# 1. CREATE dart_defines.json (Mirroring your local setup)
+# We use a temporary JSON file to ensure keys are passed correctly to the compiler
+RUN echo "{" > dart_defines.json && \
+    echo "  \"OPENWEATHER_API_KEY\": \"$OPENWEATHER_API_KEY\"," >> dart_defines.json && \
+    echo "  \"FIREBASE_API_KEY\": \"$FIREBASE_API_KEY\"," >> dart_defines.json && \
+    echo "  \"FIREBASE_AUTH_DOMAIN\": \"$FIREBASE_AUTH_DOMAIN\"," >> dart_defines.json && \
+    echo "  \"FIREBASE_PROJECT_ID\": \"$FIREBASE_PROJECT_ID\"," >> dart_defines.json && \
+    echo "  \"FIREBASE_STORAGE_BUCKET\": \"$FIREBASE_STORAGE_BUCKET\"," >> dart_defines.json && \
+    echo "  \"FIREBASE_MESSAGING_SENDER_ID\": \"$FIREBASE_MESSAGING_SENDER_ID\"," >> dart_defines.json && \
+    echo "  \"FIREBASE_APP_ID\": \"$FIREBASE_APP_ID\"," >> dart_defines.json && \
+    echo "  \"FIREBASE_MEASUREMENT_ID\": \"$FIREBASE_MEASUREMENT_ID\"," >> dart_defines.json && \
+    echo "  \"FACEBOOK_APP_ID\": \"$FACEBOOK_APP_ID\"" >> dart_defines.json && \
+    echo "}" >> dart_defines.json
+
+# 2. GENERATE env_config.dart (Required for successful compilation)
 RUN mkdir -p lib/utils && \
     echo "class EnvConfig {" > lib/utils/env_config.dart && \
     echo "  static const String openWeatherApiKey = String.fromEnvironment('OPENWEATHER_API_KEY');" >> lib/utils/env_config.dart && \
@@ -34,7 +48,7 @@ RUN mkdir -p lib/utils && \
     echo "  static bool get isFirebaseConfigured => firebaseApiKey.isNotEmpty && firebaseProjectId.isNotEmpty && firebaseAppId.isNotEmpty;" >> lib/utils/env_config.dart && \
     echo "}" >> lib/utils/env_config.dart
 
-# 2. Inject keys into web/index.html using sed
+# 3. Inject Google/Facebook IDs into index.html
 RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/885191312691-pdr275ie3rp94tcbtn45mg58t16r9jvv.apps.googleusercontent.com/$GOOGLE_CLIENT_ID/g" web/index.html; \
     fi && \
@@ -42,21 +56,11 @@ RUN if [ ! -z "$GOOGLE_CLIENT_ID" ]; then \
       sed -i "s/1670995600575868/$FACEBOOK_APP_ID/g" web/index.html; \
     fi
 
-# 3. Fetch dependencies
-RUN flutter pub get
-
-# 4. Build with explicit --dart-define flags (Ensures String.fromEnvironment picks them up)
-RUN flutter config --enable-web
-RUN flutter build web --release --no-source-maps \
-    --dart-define=OPENWEATHER_API_KEY=$OPENWEATHER_API_KEY \
-    --dart-define=FIREBASE_API_KEY=$FIREBASE_API_KEY \
-    --dart-define=FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN \
-    --dart-define=FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
-    --dart-define=FIREBASE_STORAGE_BUCKET=$FIREBASE_STORAGE_BUCKET \
-    --dart-define=FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID \
-    --dart-define=FIREBASE_APP_ID=$FIREBASE_APP_ID \
-    --dart-define=FIREBASE_MEASUREMENT_ID=$FIREBASE_MEASUREMENT_ID \
-    --dart-define=FACEBOOK_APP_ID=$FACEBOOK_APP_ID
+# 4. Clean and Build (Force removal of any local build files pushed via Git)
+RUN rm -rf build/web && \
+    flutter pub get && \
+    flutter config --enable-web && \
+    flutter build web --release --no-source-maps --dart-define-from-file=dart_defines.json
 
 # Stage 2: Serve
 FROM nginx:alpine
