@@ -33,7 +33,8 @@ class LocalAuthService {
       
       final dynamic rp = js_util.newObject();
       js_util.setProperty(rp, 'name', 'SkyFit Pro');
-      js_util.setProperty(rp, 'id', 'localhost');
+      // DYNAMIC DOMAIN: Uses 'localhost' now, and your real URL after deployment
+      js_util.setProperty(rp, 'id', html.window.location.hostname);
       js_util.setProperty(publicKey, 'rp', rp);
 
       final dynamic user = js_util.newObject();
@@ -76,7 +77,8 @@ class LocalAuthService {
       final dynamic publicKey = js_util.newObject();
       js_util.setProperty(publicKey, 'challenge', _toJSBuffer(challenge));
       js_util.setProperty(publicKey, 'userVerification', 'required');
-      js_util.setProperty(publicKey, 'rpId', 'localhost');
+      // DYNAMIC DOMAIN: Matches the hostname automatically
+      js_util.setProperty(publicKey, 'rpId', html.window.location.hostname);
       
       final dynamic options = js_util.newObject();
       js_util.setProperty(options, 'publicKey', publicKey);

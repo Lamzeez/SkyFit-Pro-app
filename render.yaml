@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: SkyFit-Pro-app
+    name: skyfit-pro-app
     runtime: docker
     plan: free
     region: oregon
@@ -26,3 +26,8 @@ services:
         sync: false
       - key: FACEBOOK_APP_ID
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # IMPORTANT: To pass these to the Docker build step on Render, 
+      # you MUST also create them with the prefix DOCKER_BUILD_ARG_ in the Render Dashboard.
+      # Example: DOCKER_BUILD_ARG_FIREBASE_API_KEY = your_key_here
