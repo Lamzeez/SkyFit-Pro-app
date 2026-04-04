@@ -10,7 +10,9 @@ import '../utils/env_config.dart';
 
 class AuthRepository {
   FirebaseAuth get _auth => FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
   final FacebookAuth _facebookAuth = FacebookAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
@@ -124,8 +126,23 @@ class AuthRepository {
             age: 0,
             weight: 0.0,
             height: 170.0,
+            authMethod: 'google',
           );
           await _firestoreService.createUser(userModel);
+        } else {
+          // Self-healing: Update missing email or authMethod if needed
+          bool needsUpdate = false;
+          if (userModel.email.isEmpty && user.email != null && user.email!.isNotEmpty) {
+            userModel = userModel.copyWith(email: user.email);
+            needsUpdate = true;
+          }
+          if (userModel.authMethod != 'google') {
+            userModel = userModel.copyWith(authMethod: 'google');
+            needsUpdate = true;
+          }
+          if (needsUpdate) {
+            await _firestoreService.updateUser(userModel);
+          }
         }
         return userModel;
       }
@@ -159,8 +176,23 @@ class AuthRepository {
               age: 0,
               weight: 0.0,
               height: 170.0,
+              authMethod: 'facebook',
             );
             await _firestoreService.createUser(userModel);
+          } else {
+            // Self-healing: Update missing email or authMethod if needed
+            bool needsUpdate = false;
+            if (userModel.email.isEmpty && user.email != null && user.email!.isNotEmpty) {
+              userModel = userModel.copyWith(email: user.email);
+              needsUpdate = true;
+            }
+            if (userModel.authMethod != 'facebook') {
+              userModel = userModel.copyWith(authMethod: 'facebook');
+              needsUpdate = true;
+            }
+            if (needsUpdate) {
+              await _firestoreService.updateUser(userModel);
+            }
           }
           return userModel;
         }
@@ -202,8 +234,53 @@ class AuthRepository {
     if (!EnvConfig.isFirebaseConfigured) return null;
     User? user = _auth.currentUser;
     if (user != null) {
-      return await _firestoreService.getUser(user.uid);
+      UserModel? userModel = await _firestoreService.getUser(user.uid);
+      if (userModel != null) {
+        bool needsUpdate = false;
+        
+        // 1. Self-healing: Email (Aggressive detection)
+        String? firebaseEmail = user.email;
+        if (firebaseEmail == null || firebaseEmail.isEmpty) {
+          for (final info in user.providerData) {
+            if (info.email != null && info.email!.isNotEmpty) {
+              firebaseEmail = info.email;
+              break;
+            }
+          }
+        }
+
+        if (userModel.email.isEmpty && firebaseEmail != null && firebaseEmail.isNotEmpty) {
+          userModel = userModel.copyWith(email: firebaseEmail);
+          needsUpdate = true;
+        }
+
+        // 2. Self-healing: Auth Method (Detect Google/Facebook)
+        String detectedMethod = 'email';
+        for (final info in user.providerData) {
+          if (info.providerId == 'google.com') {
+            detectedMethod = 'google';
+            break;
+          } else if (info.providerId == 'facebook.com') {
+            detectedMethod = 'facebook';
+            break;
+          }
+        }
+
+        if (userModel.authMethod != detectedMethod) {
+          userModel = userModel.copyWith(authMethod: detectedMethod);
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          await _firestoreService.updateUser(userModel);
+        }
+      }
+      return userModel;
     }
     return null;
+  }
+
+  Future<void> updateFirestoreUser(UserModel user) async {
+    await _firestoreService.updateUser(user);
   }
 }

@@ -8,6 +8,7 @@ class UserModel {
   final bool biometricEnabled;
   final String? securePin; // 4-6 digit PIN
   final String? profilePictureUrl;
+  final String authMethod; // 'email', 'google', or 'facebook'
 
   UserModel({
     required this.uid,
@@ -19,6 +20,7 @@ class UserModel {
     this.biometricEnabled = false,
     this.securePin,
     this.profilePictureUrl,
+    this.authMethod = 'email',
   });
 
   // Calculate BMI: weight (kg) / [height (m)]^2
@@ -52,6 +54,7 @@ class UserModel {
       biometricEnabled: map['biometricEnabled'] ?? false,
       securePin: map['securePin'],
       profilePictureUrl: map['profilePictureUrl'],
+      authMethod: map['authMethod'] ?? 'email',
     );
   }
 
@@ -65,10 +68,12 @@ class UserModel {
       'biometricEnabled': biometricEnabled,
       'securePin': securePin,
       'profilePictureUrl': profilePictureUrl,
+      'authMethod': authMethod,
     };
   }
 
   UserModel copyWith({
+    String? email,
     String? fullName,
     int? age,
     double? weight,
@@ -77,10 +82,11 @@ class UserModel {
     String? securePin,
     bool clearPin = false,
     String? profilePictureUrl,
+    String? authMethod,
   }) {
     return UserModel(
       uid: uid,
-      email: email,
+      email: email ?? this.email,
       fullName: fullName ?? this.fullName,
       age: age ?? this.age,
       weight: weight ?? this.weight,
@@ -88,6 +94,7 @@ class UserModel {
       biometricEnabled: biometricEnabled ?? this.biometricEnabled,
       securePin: clearPin ? null : (securePin ?? this.securePin),
       profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
+      authMethod: authMethod ?? this.authMethod,
     );
   }
 }

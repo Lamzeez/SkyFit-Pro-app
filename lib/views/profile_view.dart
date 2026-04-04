@@ -47,12 +47,19 @@ class _ProfileBodyState extends State<ProfileBody> {
   @override
   void initState() {
     super.initState();
-    // Check if profile is incomplete and force edit sheet
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Force a refresh of the user data to ensure email and authMethod are healed/synced
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final authVM = context.read<AuthViewModel>();
       final userVM = context.read<UserViewModel>();
-      if (authVM.user != null && !authVM.user!.isProfileComplete) {
-        _openEditSheet(context, userVM, isMandatory: true);
+      
+      await authVM.refreshUser();
+      if (mounted && authVM.user != null) {
+        userVM.setUser(authVM.user);
+        
+        // Check if profile is incomplete and force edit sheet
+        if (!authVM.user!.isProfileComplete) {
+          _openEditSheet(context, userVM, isMandatory: true);
+        }
       }
     });
   }
@@ -60,11 +67,15 @@ class _ProfileBodyState extends State<ProfileBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_initialized) {
-      final user = context.watch<AuthViewModel>().user;
-      if (user != null) {
-        context.read<UserViewModel>().setUser(user);
-        _initialized = true;
+    final authUser = context.watch<AuthViewModel>().user;
+    if (authUser != null) {
+      final userVM = context.read<UserViewModel>();
+      // Always sync if the local view model is empty or outdated (including email updates)
+      if (userVM.user == null || 
+          userVM.user!.uid != authUser.uid || 
+          userVM.user!.email != authUser.email ||
+          userVM.user!.authMethod != authUser.authMethod) {
+        userVM.setUser(authUser);
       }
     }
   }
@@ -397,129 +408,127 @@ class _ProfileBodyState extends State<ProfileBody> {
 
     showDialog(
       context: context,
-      builder: (context) => PointerInterceptor(
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF131C2E) : Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-              ],
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131C2E) : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
             ),
-            child: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Icon Header
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF38B6FF).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.fingerprint_rounded,
-                        color: Color(0xFF38B6FF),
-                        size: 32,
-                      ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon Header
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38B6FF).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(height: 20),
-                    
-                    Text(
-                      'Enable Biometrics',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
+                    child: const Icon(
+                      Icons.fingerprint_rounded,
+                      color: Color(0xFF38B6FF),
+                      size: 32,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Enter your password to confirm and securely store your credentials for biometric login.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                        height: 1.4,
-                      ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  Text(
+                    'Enable Biometrics',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
-                    const SizedBox(height: 28),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Enter your password to confirm and securely store your credentials for biometric login.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
 
-                    CustomTextField(
-                      controller: passwordController,
-                      label: 'Password',
-                      hintText: 'Enter your password',
-                      isPassword: true,
-                      prefixIcon: Icons.lock_outline_rounded,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password is required';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
+                  CustomTextField(
+                    controller: passwordController,
+                    label: 'Password',
+                    hintText: 'Enter your password',
+                    isPassword: true,
+                    prefixIcon: Icons.lock_outline_rounded,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Password is required';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 32),
 
-                    // Actions
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(
-                                color: isDark ? Colors.white38 : Colors.black38,
-                                fontWeight: FontWeight.w600,
-                              ),
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: isDark ? Colors.white38 : Colors.black38,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              if (formKey.currentState!.validate()) {
-                                bool success = await authViewModel.toggleBiometrics(true, password: passwordController.text);
-                                if (success) {
-                                  userViewModel.setUser(authViewModel.user);
-                                  if (context.mounted) Navigator.pop(context);
-                                }
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (formKey.currentState!.validate()) {
+                              bool success = await authViewModel.toggleBiometrics(true, password: passwordController.text);
+                              if (success) {
+                                userViewModel.setUser(authViewModel.user);
+                                if (context.mounted) Navigator.pop(context);
                               }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF38B6FF),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: const Text(
-                              'Confirm',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF38B6FF),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: const Text(
+                            'Confirm',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -536,151 +545,149 @@ class _ProfileBodyState extends State<ProfileBody> {
 
     showDialog(
       context: context,
-      builder: (context) => PointerInterceptor(
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF131C2E) : Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-              ],
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131C2E) : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
             ),
-            child: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Icon Header
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF38B6FF).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.lock_person_rounded,
-                        color: Color(0xFF38B6FF),
-                        size: 32,
-                      ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon Header
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38B6FF).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(height: 20),
-                    
-                    Text(
-                      'Secure PIN',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
+                    child: const Icon(
+                      Icons.lock_person_rounded,
+                      color: Color(0xFF38B6FF),
+                      size: 32,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Create a 4-6 digit code to protect your personal health data.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                        height: 1.4,
-                      ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  Text(
+                    'Secure PIN',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
-                    const SizedBox(height: 28),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Create a 4-6 digit code to protect your personal health data.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
 
-                    CustomTextField(
-                      controller: pinController,
-                      label: 'New PIN',
-                      hintText: 'Enter 4-6 digits',
-                      keyboardType: TextInputType.number,
-                      isPassword: true,
-                      prefixIcon: Icons.dialpad_rounded,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(6),
-                      ],
-                      validator: (v) {
-                        if (v == null || v.length < 4) return 'PIN must be 4-6 digits';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      controller: confirmController,
-                      label: 'Confirm PIN',
-                      hintText: 'Repeat your PIN',
-                      keyboardType: TextInputType.number,
-                      isPassword: true,
-                      prefixIcon: Icons.lock_outline_rounded,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(6),
-                      ],
-                      validator: (v) {
-                        if (v != pinController.text) return 'PINs do not match';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
+                  CustomTextField(
+                    controller: pinController,
+                    label: 'New PIN',
+                    hintText: 'Enter 4-6 digits',
+                    keyboardType: TextInputType.number,
+                    isPassword: true,
+                    prefixIcon: Icons.dialpad_rounded,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(6),
+                    ],
+                    validator: (v) {
+                      if (v == null || v.length < 4) return 'PIN must be 4-6 digits';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  CustomTextField(
+                    controller: confirmController,
+                    label: 'Confirm PIN',
+                    hintText: 'Repeat your PIN',
+                    keyboardType: TextInputType.number,
+                    isPassword: true,
+                    prefixIcon: Icons.lock_outline_rounded,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(6),
+                    ],
+                    validator: (v) {
+                      if (v != pinController.text) return 'PINs do not match';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 32),
 
-                    // Actions
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(
-                                color: isDark ? Colors.white38 : Colors.black38,
-                                fontWeight: FontWeight.w600,
-                              ),
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: isDark ? Colors.white38 : Colors.black38,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              if (formKey.currentState!.validate()) {
-                                bool success = await authViewModel.setSecurePin(pinController.text);
-                                if (success) {
-                                  userViewModel.setUser(authViewModel.user);
-                                  if (context.mounted) Navigator.pop(context);
-                                }
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (formKey.currentState!.validate()) {
+                              bool success = await authViewModel.setSecurePin(pinController.text);
+                              if (success) {
+                                userViewModel.setUser(authViewModel.user);
+                                if (context.mounted) Navigator.pop(context);
                               }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF38B6FF),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: const Text(
-                              'Enable PIN',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF38B6FF),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: const Text(
+                            'Enable PIN',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -1080,10 +1087,41 @@ class _ProfileBodyState extends State<ProfileBody> {
                             value: user.biometricEnabled,
                             activeTrackColor: const Color(0xFF4CAF50),
                             onChanged: (val) async {
+                              print("DEBUG: Biometric toggle clicked. New value: $val");
+                              // Use the most up-to-date user data from AuthViewModel
+                              final currentUser = authViewModel.user;
+                              if (currentUser == null) {
+                                print("DEBUG: Toggle failed - user is null");
+                                return;
+                              }
+
+                              print("DEBUG: Current AuthMethod: ${currentUser.authMethod}");
+
                               if (val) {
-                                // Show password dialog to enable biometrics
-                                _showBiometricEnableDialog(context, authViewModel, userViewModel);
+                                // SSO users (Google/Facebook) don't need password dialog
+                                if (currentUser.authMethod != 'email') {
+                                  print("DEBUG: SSO User detected. Triggering biometric enrollment directly...");
+                                  bool success = await authViewModel.toggleBiometrics(true);
+                                  print("DEBUG: Enrollment success: $success");
+                                  if (success) {
+                                    userViewModel.setUser(authViewModel.user);
+                                  } else if (authViewModel.error != null) {
+                                    // Show error to user if it failed
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(authViewModel.error!),
+                                          backgroundColor: Colors.redAccent,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } else {
+                                  print("DEBUG: Email User detected. Showing password dialog...");
+                                  _showBiometricEnableDialog(context, authViewModel, userViewModel);
+                                }
                               } else {
+                                print("DEBUG: Disabling biometrics...");
                                 bool success = await authViewModel.toggleBiometrics(false);
                                 if (success) {
                                   userViewModel.setUser(authViewModel.user);

@@ -170,12 +170,6 @@ class _BiometricLockViewState extends State<BiometricLockView> {
                     style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 12),
                   ),
                 ),
-                
-                if (authViewModel.error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 20),
-                    child: Text(authViewModel.error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
-                  ),
               ],
             ),
           ),

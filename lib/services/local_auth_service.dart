@@ -21,7 +21,7 @@ class LocalAuthService {
   dynamic _toJSBuffer(Uint8List list) => js_util.getProperty(list, 'buffer');
 
   /// STEP 1: ENROLL
-  Future<bool> enrollBiometrics(String email) async {
+  Future<bool> enrollBiometrics(String email, {String? fullName}) async {
     try {
       print("WebAuthn: Enrolling $email...");
       final dynamic credentials = js_util.getProperty(html.window.navigator, 'credentials');
@@ -33,14 +33,13 @@ class LocalAuthService {
       
       final dynamic rp = js_util.newObject();
       js_util.setProperty(rp, 'name', 'SkyFit Pro');
-      // DYNAMIC DOMAIN: Uses 'localhost' now, and your real URL after deployment
       js_util.setProperty(rp, 'id', html.window.location.hostname);
       js_util.setProperty(publicKey, 'rp', rp);
 
       final dynamic user = js_util.newObject();
       js_util.setProperty(user, 'id', _toJSBuffer(userId));
       js_util.setProperty(user, 'name', email);
-      js_util.setProperty(user, 'displayName', email);
+      js_util.setProperty(user, 'displayName', (fullName != null && fullName.isNotEmpty) ? fullName : email);
       js_util.setProperty(publicKey, 'user', user);
 
       final dynamic algList = js_util.callConstructor(js_util.getProperty(html.window, 'Array'), []);
@@ -52,8 +51,8 @@ class LocalAuthService {
 
       final dynamic authSelection = js_util.newObject();
       js_util.setProperty(authSelection, 'authenticatorAttachment', 'platform');
-      js_util.setProperty(authSelection, 'userVerification', 'required');
-      js_util.setProperty(authSelection, 'residentKey', 'required');
+      js_util.setProperty(authSelection, 'userVerification', 'preferred');
+      js_util.setProperty(authSelection, 'residentKey', 'preferred');
       js_util.setProperty(publicKey, 'authenticatorSelection', authSelection);
       
       final dynamic options = js_util.newObject();
@@ -68,7 +67,8 @@ class LocalAuthService {
   }
 
   /// STEP 2: AUTHENTICATE
-  Future<String?> authenticate() async {
+  /// Returns a Map with 'success' (bool) and 'email' (String?)
+  Future<Map<String, dynamic>> authenticate() async {
     try {
       print("WebAuthn: Requesting authentication...");
       final dynamic credentials = js_util.getProperty(html.window.navigator, 'credentials');
@@ -77,7 +77,6 @@ class LocalAuthService {
       final dynamic publicKey = js_util.newObject();
       js_util.setProperty(publicKey, 'challenge', _toJSBuffer(challenge));
       js_util.setProperty(publicKey, 'userVerification', 'required');
-      // DYNAMIC DOMAIN: Matches the hostname automatically
       js_util.setProperty(publicKey, 'rpId', html.window.location.hostname);
       
       final dynamic options = js_util.newObject();
@@ -89,16 +88,21 @@ class LocalAuthService {
         final dynamic response = js_util.getProperty(result, 'response');
         final ByteBuffer? userHandle = js_util.getProperty(response, 'userHandle');
         
+        String? selectedEmail;
         if (userHandle != null) {
-          final String selectedEmail = utf8.decode(userHandle.asUint8List());
+          selectedEmail = utf8.decode(userHandle.asUint8List());
           print("WebAuthn: User selected in browser: $selectedEmail");
-          return selectedEmail;
         }
+        
+        return {
+          'success': true,
+          'email': selectedEmail,
+        };
       }
-      return null;
+      return {'success': false};
     } catch (e) {
       print("WebAuthn Verification Error: $e");
-      return null;
+      return {'success': false};
     }
   }
 }

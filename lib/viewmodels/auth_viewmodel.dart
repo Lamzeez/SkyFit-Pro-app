@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import '../repositories/auth_repository.dart';
@@ -180,6 +181,22 @@ class AuthViewModel extends ChangeNotifier {
   Future<void> _init() async {
     _isLoading = true;
     notifyListeners();
+
+    // Wait for Firebase Auth to initialize and recover session from browser storage
+    if (EnvConfig.isFirebaseConfigured) {
+      final Completer<void> authCompleter = Completer<void>();
+      late StreamSubscription subscription;
+      
+      subscription = _authRepository.authStateChanges.listen((user) {
+        authCompleter.complete();
+      });
+
+      // Timeout after 2 seconds if no session found
+      await authCompleter.future.timeout(const Duration(seconds: 2), onTimeout: () {});
+      await subscription.cancel();
+    }
+
+    // Re-fetch user one last time to ensure we have the 'healed' data (email/authMethod)
     _user = await _authRepository.getCurrentUserModel();
     
     // Check local storage for biometric preference
@@ -372,10 +389,36 @@ class AuthViewModel extends ChangeNotifier {
     if (_user == null) return false;
     _error = null;
     if (enabled) {
-      if (password == null) {
+      // SSO users (Google/Facebook) don't need password to enable biometrics
+      bool isEmailUser = _user!.authMethod == 'email';
+
+      if (isEmailUser && password == null) {
         setError("Password is required to enable biometric login.");
         return false;
       }
+
+      // ON-THE-SPOT HEALING: If email is missing, try to grab it from Firebase right now
+      if (_user!.email.isEmpty) {
+        final fbUser = FirebaseAuth.instance.currentUser;
+        String? foundEmail = fbUser?.email;
+        if (foundEmail == null || foundEmail.isEmpty) {
+          for (final info in fbUser?.providerData ?? []) {
+            if (info.email != null && info.email!.isNotEmpty) {
+              foundEmail = info.email;
+              break;
+            }
+          }
+        }
+        
+        if (foundEmail != null && foundEmail.isNotEmpty) {
+          _user = _user!.copyWith(email: foundEmail);
+          await _authRepository.updateFirestoreUser(_user!);
+        } else {
+          setError("Please ensure your email is populated before enabling biometrics.");
+          return false;
+        }
+      }
+      
       bool available = await _localAuthService.isBiometricAvailable();
       if (!available) {
         setError("Your device or browser does not support biometric security.");
@@ -383,19 +426,23 @@ class AuthViewModel extends ChangeNotifier {
         return false;
       }
       try {
-        bool enrolled = await _localAuthService.enrollBiometrics(_user!.email);
+        bool enrolled = await _localAuthService.enrollBiometrics(_user!.email, fullName: _user!.fullName);
         if (!enrolled) {
           setError("Failed to create passkey. Ensure your device has a fingerprint or screen lock.");
           notifyListeners();
           return false;
         }
-        bool passwordValid = await verifyPassword(password);
-        if (!passwordValid) {
-          setError("Incorrect password. Could not enable biometrics.");
-          return false;
+
+        if (isEmailUser) {
+          bool passwordValid = await verifyPassword(password!);
+          if (!passwordValid) {
+            setError("Incorrect password. Could not enable biometrics.");
+            return false;
+          }
+          // Save to specific account vault only for email users
+          await _storageService.save('bio_pwd_${_user!.email}', password);
         }
-        // Save to specific account vault
-        await _storageService.save('bio_pwd_${_user!.email}', password);
+        
         await _storageService.save('biometric_email', _user!.email); // Track primary
         await _storageService.save('biometric_enabled', 'true');
         setSuccess("Biometric login enabled successfully!");
@@ -469,49 +516,79 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Trigger the browser prompt to see WHO touched the sensor
-      final String? selectedEmail = await _localAuthService.authenticate();
+      // 1. Trigger the browser prompt
+      final Map<String, dynamic> result = await _localAuthService.authenticate();
+      final bool biometricSuccess = result['success'] ?? false;
+      final String? selectedEmail = result['email'];
       
-      if (selectedEmail != null) {
-        // 2. Validate if the user selected in the browser matches what they typed (if any)
-        if (enteredEmail != null && enteredEmail.isNotEmpty && enteredEmail.trim() != selectedEmail) {
-          setError("You selected the passkey for $selectedEmail, but typed $enteredEmail.");
-          _isLoading = false;
-          notifyListeners();
-          return false;
-        }
-
-        // 3. Check for lockouts on the selected account
-        if (isEmailLockedOut(selectedEmail)) {
-          setError("Biometrics locked for $selectedEmail. Use password.");
-          _isLoading = false;
-          notifyListeners();
-          return false;
-        }
-
-        // 4. Retrieve password from the vault for THIS specific email
-        final password = await _storageService.read('bio_pwd_$selectedEmail');
-        if (password != null) {
-          _user = await _authRepository.login(selectedEmail, password);
-          if (_user != null) {
-            _isBiometricAuthenticated = true;
-            _isPinAuthenticated = true;
-            _resetFailCount(selectedEmail);
-            // Important: Update primary biometric user on success
-            await _storageService.save('biometric_email', selectedEmail);
-            setSuccess("Logged in as $selectedEmail!");
+      if (biometricSuccess) {
+        // If we have an email from the passkey, use it to prioritize the account
+        if (selectedEmail != null) {
+          // BUG FIX: Prevent logging into OTHER accounts during a session unlock
+          // If a user is already "resident" (locked out but identified), they MUST use their own passkey.
+          if (_user != null && _user!.email.isNotEmpty && _user!.email != selectedEmail) {
+            setError("Access denied. This passkey belongs to a different account (${selectedEmail}).");
             _isLoading = false;
             notifyListeners();
-            return true;
-          } else {
-            setError("Login failed. Stored credentials might be outdated.");
+            return false;
           }
+
+          // Validate if the user selected in the browser matches what they typed (if any - for Login page)
+          if (enteredEmail != null && enteredEmail.isNotEmpty && enteredEmail.trim() != selectedEmail) {
+            setError("You selected the passkey for $selectedEmail, but typed $enteredEmail.");
+            _isLoading = false;
+            notifyListeners();
+            return false;
+          }
+
+          if (isEmailLockedOut(selectedEmail)) {
+            setError("Biometrics locked for $selectedEmail. Use password.");
+            _isLoading = false;
+            notifyListeners();
+            return false;
+          }
+
+          final password = await _storageService.read('bio_pwd_$selectedEmail');
+          if (password != null) {
+            _user = await _authRepository.login(selectedEmail, password);
+          } else {
+            // SSO or session recovery
+            final currentUser = await _authRepository.getCurrentUserModel();
+            if (currentUser != null && currentUser.email == selectedEmail) {
+              _user = currentUser;
+            } else {
+              // Professional guidance for SSO users on the Login Page
+              setError("For your security, please sign in using the Google or Facebook button. Biometrics are used to unlock your app once you are signed in.");
+              _isLoading = false;
+              notifyListeners();
+              return false;
+            }
+          }
+        } 
+        // Leniency for Lock Screen: if email is missing from passkey but we are already logged in
+        else if (_user != null) {
+           // We are at the biometric lock screen and the user is already signed in.
+           // Since the biometric check PASSED, we can trust the unlock even if the passkey was "anonymous".
+           print("WebAuthn: Anonymous touch accepted for lock screen unlock.");
         } else {
-          setError("No stored password found for $selectedEmail. Please log in manually once.");
+           setError("Could not identify your account. Please log in manually.");
+           _isLoading = false;
+           notifyListeners();
+           return false;
+        }
+
+        if (_user != null) {
+          _isBiometricAuthenticated = true;
+          _isPinAuthenticated = true;
+          _resetFailCount(_user!.email);
+          await _storageService.save('biometric_email', _user!.email);
+          setSuccess("App unlocked successfully!");
+          _isLoading = false;
+          notifyListeners();
+          return true;
         }
       } else {
-        // If we don't have a selectedEmail, it means verification failed or was cancelled
-        // We increment the strike for the 'enrolledEmail' if one was typed, or the primary one
+        // Biometric prompt failed or was cancelled
         final primaryEmail = await _storageService.read('biometric_email');
         final emailToStrike = (enteredEmail != null && enteredEmail.isNotEmpty) ? enteredEmail : primaryEmail;
         
